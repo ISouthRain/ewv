@@ -1,0 +1,60 @@
+{
+   "action": {
+      "default_icon": {
+         "16": "icons/16.png",
+         "48": "icons/48.png"
+      },
+      "default_popup": "pages/popup.html",
+      "default_title": "Surfingkeys"
+   },
+   "author": "brook hong",
+   "background": {
+      "service_worker": "background.js"
+   },
+   "commands": {
+      "closeTab": {
+         "description": "Close the current tab."
+      },
+      "nextTab": {
+         "description": "Go to the next tab."
+      },
+      "previousTab": {
+         "description": "Go to the previous tab."
+      },
+      "proxyThis": {
+         "description": "Toggle current site in autoproxy_hosts."
+      },
+      "restartext": {
+         "description": "Restart this extenstion."
+      }
+   },
+   "content_scripts": [ {
+      "all_frames": true,
+      "css": [ "content.css" ],
+      "js": [ "content.js" ],
+      "match_about_blank": true,
+      "matches": [ "\u003Call_urls>" ],
+      "run_at": "document_start"
+   } ],
+   "description": "Rich shortcuts to click links/switch tabs/scroll, capture pages, use your browser like vim for productivity.",
+   "host_permissions": [ "\u003Call_urls>" ],
+   "icons": {
+      "128": "icons/128.png",
+      "16": "icons/16.png",
+      "48": "icons/48.png"
+   },
+   "incognito": "split",
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+Hxw/M9fSZS/4NzW65ZRj4T6ur6vzC/BvjBgF5o8gWqEGJlJYjkjgQvbkXL8UXdX8rJr8eVcbJRwSVeLIt1JujEzChpsNduN9PXDU0J9BW65a6Y82KzAOib97Llqol8H6dva29SESu8qa0NeX5LqtKAKBBH79pErRzGN3AAxg8whfvAgjKxXKeaOBcwS8ORfdkYXeGy+iyOCHUbMcYSOddvpzy4+hBkWDHF7Q/uFWsvUEgxHiwkHauP5+8m/9qHF8/yBt8U9JBJqkyd2diS3oZlBx9IHqXqRipDiMQUmhvrj1gADRNkpOE3o9jBpFzQ4sIv1lefwvAv2QM05im2aTQIDAQAB",
+   "manifest_version": 3,
+   "name": "Surfingkeys",
+   "options_page": "pages/options.html",
+   "permissions": [ "nativeMessaging", "tabs", "history", "bookmarks", "scripting", "storage", "sessions", "downloads", "topSites", "clipboardRead", "clipboardWrite", "proxy", "tts", "downloads.shelf", "favicon", "userScripts", "tabGroups" ],
+   "short_name": "Surfingkeys",
+   "update_url": "https://edge.microsoft.com/extensionwebstorebase/v1/crx",
+   "version": "1.17.12",
+   "web_accessible_resources": [ {
+      "extension_ids": [ "*" ],
+      "matches": [ "\u003Call_urls>" ],
+      "resources": [ "_favicon/*", "api.js", "pages/neovim.html", "pages/emoji.tsv", "pages/l10n.json", "pages/frontend.html", "pages/pdf_viewer.html", "pages/pdf_viewer.css", "pages/pdf_viewer.mjs", "pages/shadow.css" ]
+   } ]
+}

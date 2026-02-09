@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greeting</title>
+    <script>
+        function updateModeLine(bufferName, selected) {
+            document.querySelector("#buffer-name").innerText = bufferName;
+            document.querySelector("body").style.backgroundColor = (selected === 't') ? 'yellow' : 'green'
+	    // hello world is good test good this is good and bad
+        }
+    </script>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            font-size: 20px;
+            /* width: 100% works fine as it defaults to the viewport width */
+            background-color: red;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: green;
+            font-size: 60vh;
+        }
+
+        .mode-line {
+            display: flex;
+            flex-direction: row;
+            /* This is the default behavior */
+            /* Additional properties for alignment/spacing */
+            justify-content: space-around;
+            /* Distributes space evenly between and around items */
+            align-items: center;
+            /* Aligns items vertically in the center */
+        }
+
+        #starter {
+            flex: 0 0 20px;
+            background-color: black;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="mode-line">
+        <div id="starter">h</div>
+        <div id="buffer-name">buffer name</div>
+        <div id="buffer-size">buffer size</div>
+    </div>
+    <script>
+        // window.chrome.webview.postMessage({ "type": "status", "value": "updated" })
+        async function main() {
+            async function emacs_eval(src) {
+                const bridge = window.chrome.webview.hostObjects.bridge;
+                return new Promise((resolve, reject) => {
+                    bridge.say_hello(src, (val) => {
+                        resolve(val)
+                    })
+                })
+            }
+            // console.error("callling main bridge = ", await bridge.say_hello("(emacs-version)", (val)=>console.error('val = ', val)))
+            // const rt = await .say_hello();
+            // console.error('rt = ', rt)
+            console.error("emacs-version = ", await emacs_eval("(emacs-version)"))
+            document.querySelector("#buffer-name").innerText = await emacs_eval("(buffer-name)");
+        }
+    </script>
+</body>
+
+</html>

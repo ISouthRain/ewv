@@ -1,0 +1,28 @@
+[package]
+name = "ewv"
+version = "0.1.0"
+edition = "2024"
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+emacs = "0.19.0"
+libc = "0.2.179"
+serde = {version = "1.0.228", features= ["derive"]}
+serde_json = "1.0.149"
+unchecked-refcell = {version = "0.2.2", features= ["debug_refcell"]}
+webview2-com = "0.38.2"
+webview2-com-sys = "0.38.2"
+windows = { version = "^0.61", features = ["Win32_System_Com", "Win32_System_Com_StructuredStorage", "Foundation_Numerics", "Graphics", "System", "UI", "UI_Composition", "UI_Composition_Desktop", "Win32_Foundation", "Win32_Graphics_Direct2D", "Win32_Graphics_Direct2D_Common", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_System_WinRT_Composition", "Win32_System_WinRT_Graphics_Direct2D", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading", "Win32_UI_HiDpi", "Win32_System_SystemServices"] }
+windows-core = "^0.61"
+windows-implement = "0.60.2"
+windows-numerics = "^0.2"
+
+[build-dependencies]
+patch-crate = "0.1"
+
+[package.metadata.patch]
+crates = ["webview2-com"]
+
+[patch.crates-io]
+webview2-com = { path="./target/patch/webview2-com-0.38.2" }

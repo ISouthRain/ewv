@@ -1,0 +1,38 @@
+* quick start
+1. shell
+   #+begin_src sh
+   git clone https://github.com/heartnheart/ewv.git
+   cd ewv
+   cargo patch-crate
+   cargo build
+   emacs --debug-init -Q -L . -l ewv.el
+   #+end_src
+2. in emacs =M-x ewv-browser-open-url= 输入网址如 =www.baidu.com=
+
+* overview
+1. 封装了 webview2 的一些基本功能 =ewv-core.el= 和 =ewv-native-webview-*=, 在这个基础上打算做四个东西
+   1. =ewv-browser=:  webview 的生命周期和尺寸跟某个 buffer 绑定
+   2. =ewv-mode-line=: webview 的生命周期和尺寸跟某个 window 的特定区域如 mode-line (header-line/tab-line) 绑定
+   3. =ewv-org-inline=: webview 的生命周期跟某个 org mode buffer 绑定，尺寸跟某个 inline image 绑定，做类似 xwidget-webkit 的效果
+   4. =ewv-popup=: webview 的生命周期跟某个 frame 绑定
+2. 实现思路及碰到的问题
+   1. webview2 支持两种方式嵌入到 win32 应用里，一种是通过 windows.ui.composition API 借助 visual layer, 另一种是直接 reparent. 两个方式都有的问题是 webview2 一旦获取了焦点自己会强行进行键盘事件处理，也没有提供合理的 API 控制键盘事件。
+      1. 使用 visual layer 可以方便的跟其他 layer 进行混合，但这个方式不会转发鼠标事件，需要自行转发（解析转换比较麻烦），并且鼠标事件在转发前会先穿透到 emacs 中，拦截较为麻烦。最终放弃这个方案（但如果不用鼠标事件且需要透明效果可以考虑拿来做类似 holo-layer 这样的效果）。
+      2. 使用 reparent 的方式会自动处理键盘和鼠标事件。但 webview2 获取焦点后无法再通过鼠标切换焦点到父窗口，通过 =SetWindowsHookExW= hack 临时绕过。
+   2. webview2 焦点和键盘事件
+      1. webview2 一旦获得焦点几乎所有键盘事件都会直接发送到 webview2 所以 emacs 没有机会处理。目前的解决方案是类似 evil 的模态方式，默认焦点在 emacs 的 buffer 里，所以可以定制各种 emacs 事件，然后通过 =i= 主动将焦点切换到 webview2 之后几乎所有键盘事件就完全不经过 emacs 了。
+      2. webview2 运行定制一些 Acceleration key 发送到 host. 目前定制了 =C-g= 将焦点切换回 emacs. 还有 =C-x= 和 =M-x= 将焦点切换回 emacs 并发送对应的键
+* ewv-browser
+1. =ewv-browser-open-url= 新 buffer 打开指定网页
+2. =ewv-browser-open-file= 新 buffer 打开指定文件
+3. 焦点在 emacs 的的时候目前定制了 4 个 key （这里应该写个 major mode）
+   1. =i= 切换焦点到 webview
+   2. =t= 切换 webview 的显示
+   3. =e= 当前 buffer 加载新 url
+   4. =f= 当前 buffer 加载新文件
+4. 焦点在 webview 中
+   1. =C-g= 切换焦点到 emacs
+   2. =C-x= 切换焦点到 emacs 并输入 =C-x=
+   3. =M-x= 切换焦点到 emacs 并输入 =M-x=
+5. 网页建议使用 surfingkeys, 可以在 =C:\Users\<User>\AppData\Local\Microsoft\Edge\User Data\Default\Extensions= 中找。我在 extensions 目录直接放了一份。
+   1. 但 webview2 对扩展的支持能力有限，一些 surfingkeys 需要的权限无法授权。比如 surfingkeys 需要开发者模式才能编辑自定义脚本。需要访问 =file://= url 的权限才能在本地文件中加载。前者可以通过自己编译定制 surfingkeys 解决，后者暂无好的解决方案

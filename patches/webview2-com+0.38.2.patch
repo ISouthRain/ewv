@@ -1,0 +1,13 @@
+diff --git a/src/callback.rs b/src/callback.rs
+index aeb9329..e4c198c 100644
+--- a/src/callback.rs
++++ b/src/callback.rs
+@@ -216,7 +216,7 @@ pub struct HistoryChangedEventHandler(
+     Option<IUnknown>,
+ );
+ 
+-#[event_callback]
++#[completed_callback]
+ pub struct NavigationCompletedEventHandler(
+     ICoreWebView2NavigationCompletedEventHandler,
+     Option<ICoreWebView2>,
