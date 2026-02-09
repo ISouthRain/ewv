@@ -94,6 +94,8 @@
           (string-prefix-p "http://" url)
           (string-prefix-p "chrome://" url)
           (string-prefix-p "file://" url)
+          (string-prefix-p "chrome-extension://" url)
+          (string-prefix-p "extension://" url)
           (string-prefix-p "edge://" url))
       url
     (if (file-exists-p url)
