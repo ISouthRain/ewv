@@ -353,6 +353,9 @@ impl Webview {
             CreateCoreWebView2ControllerCompletedHandler::wait_for_async_operation(
                 Box::new(move |handler| unsafe {
                     let env3: ICoreWebView2Environment10 = environment.cast().unwrap();
+                    let mut version = PWSTR::default();
+                    env3.BrowserVersionString(&mut version).unwrap();
+                    println!("webview2 version = {:?}", version.to_string());
                     let options = env3.CreateCoreWebView2ControllerOptions().unwrap();
                     let options: ICoreWebView2ControllerOptions4 = options.cast().unwrap();
                     // options.SetAllowHostInputProcessing(true).unwrap();
