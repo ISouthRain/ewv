@@ -309,7 +309,16 @@ pub struct Webview {
     bounds: RECT,
     controller: ICoreWebView2Controller,
 }
-
+fn notify_emacs_for_webview(webview: &ICoreWebView2) {
+    WEBVIEWS.with(|webviews| {
+        let webviews = webviews.borrow();
+        let wv = webviews.iter().find(|w| &w.raw == webview).unwrap();
+        let hwnd = HWND(wv.hwnd as *mut libc::c_void);
+        unsafe {
+            PostMessageW(Some(hwnd), WM_INPUTLANGCHANGE, WPARAM(0), LPARAM(0)).unwrap();
+        }
+    });
+}
 impl Webview {
     pub fn new(hwnd_id: isize, bounds: RECT) -> Self {
         let hwnd = HWND(hwnd_id as *mut libc::c_void);
@@ -400,7 +409,7 @@ impl Webview {
         let mut _token = 0;
         (unsafe {
             webview.add_NewWindowRequested(
-                &NewWindowRequestedEventHandler::create(Box::new(move |_webview, args| {
+                &NewWindowRequestedEventHandler::create(Box::new(move |webview, args| {
                     if let Some(args) = args {
                         // args.SetHandled(true).unwrap();
                         // let mut uri = windows::core::PWSTR::null();
@@ -424,13 +433,7 @@ impl Webview {
                                 deferral.Complete().unwrap();
                             }));
                         });
-                        PostMessageW(
-                            Some(HWND_BROADCAST),
-                            WM_INPUTLANGCHANGE,
-                            WPARAM(0),
-                            LPARAM(0),
-                        )
-                        .unwrap();
+                        notify_emacs_for_webview(&webview.unwrap());
                         // args.SetNewWindow(webview.as_ref().unwrap()).unwrap();
                     }
                     Ok(())
@@ -576,7 +579,11 @@ impl Webview {
                 extension.Name(&mut name).unwrap();
                 let mut id = PWSTR::default();
                 extension.Id(&mut id).unwrap();
-                println!("added extension name {:?} id {:?}", name.to_string(), id.to_string());
+                println!(
+                    "added extension name {:?} id {:?}",
+                    name.to_string(),
+                    id.to_string()
+                );
                 Ok(())
             }),
         )
@@ -705,34 +712,30 @@ impl Webview {
         let gcb = cb.make_global_ref();
         println!("eval_js start");
         let webview: ICoreWebView2_21 = raw.cast().unwrap();
+        let webview2 = webview.clone();
         unsafe {
-            webview.ExecuteScriptWithResult(
-                js,
-                &ExecuteScriptWithResultCompletedHandler::create(Box::new(move |_a, b| {
-                    let b = b.unwrap();
-                    let mut rt = PWSTR::default();
-                    b.ResultAsJson(&mut rt).unwrap();
-                    let rt = rt.to_string().unwrap();
-                    println!("rt = {:?}", rt);
-                    EVENTS.with(|events| {
-                        let events = &mut *events.borrow_mut();
-                        events.push(Box::new(move |env: &Env| {
-                            let cb2 = gcb.bind(env);
-                            env.call(cb2, (rt,)).unwrap();
-                            gcb.free(env).unwrap();
-                        }));
-                    });
-                    PostMessageW(
-                        Some(HWND_BROADCAST),
-                        WM_INPUTLANGCHANGE,
-                        WPARAM(0),
-                        LPARAM(0),
-                    )
-                    .unwrap();
-                    Ok(())
-                })),
-            )
-            .unwrap();
+            webview
+                .ExecuteScriptWithResult(
+                    js,
+                    &ExecuteScriptWithResultCompletedHandler::create(Box::new(move |_a, b| {
+                        let b = b.unwrap();
+                        let mut rt = PWSTR::default();
+                        b.ResultAsJson(&mut rt).unwrap();
+                        let rt = rt.to_string().unwrap();
+                        println!("rt = {:?}", rt);
+                        EVENTS.with(|events| {
+                            let events = &mut *events.borrow_mut();
+                            events.push(Box::new(move |env: &Env| {
+                                let cb2 = gcb.bind(env);
+                                env.call(cb2, (rt,)).unwrap();
+                                gcb.free(env).unwrap();
+                            }));
+                        });
+                        notify_emacs_for_webview(&webview2);
+                        Ok(())
+                    })),
+                )
+                .unwrap();
         }
         println!("eval_js end");
     }
