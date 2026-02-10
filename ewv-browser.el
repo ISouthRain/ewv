@@ -1,5 +1,7 @@
 ;; -*- lexical-binding: t; -*-
 
+(require 'ewv-extension)
+
 (cl-defstruct ewv-browser-webview
   "webview2 instance wrapper"
   id
@@ -105,7 +107,6 @@
       (concat "https://" url)))
   )
 
-(defvar ewv--surfingkeys-dir (expand-file-name "extensions/kgnghhfkloifoabeaobjkgagcecbnppg/1.17.12_0" (file-name-directory (or load-file-name (buffer-file-name)))))
 ;;; browser: attached to buffer + occupy entire window
 
 (defun ewv-browser--load (ewv-id url buffer)
@@ -137,7 +138,7 @@
       (keymap-local-set "e" (lambda (url) (interactive "sNew Url: ") (ewv-browser--load ewv-id url ewv-buffer)))
       (keymap-local-set "f" (lambda (url) (interactive "fFile: ")    (ewv-browser--load ewv-id url ewv-buffer)))
       )
-    (ewv-native-webview-add-extension ewv-id ewv--surfingkeys-dir)
+    (ewv--extension-load ewv-id)
     (ewv-browser--load ewv-id url ewv-buffer)
     )
   )
