@@ -1,13 +1,15 @@
 * quick start
-1. shell
+1. in command prompt:
    #+begin_src sh
    git clone https://github.com/heartnheart/ewv.git
    cd ewv
+   cargo install patch-crate
    cargo patch-crate
    cargo build
    emacs --debug-init -Q -L . -l ewv.el
    #+end_src
-2. in emacs =M-x ewv-browser-open-url= 输入网址如 =www.baidu.com=
+2. in emacs:
+   =M-x ewv-browser-open-url= 输入网址如 =www.baidu.com=
 
 * overview
 1. 封装了 webview2 的一些基本功能 =ewv-core.el= 和 =ewv-native-webview-*=, 在这个基础上打算做四个东西
