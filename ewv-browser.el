@@ -11,7 +11,7 @@
   buffer
   )
 
-(defvar-local ewv--local-webview)
+(defvar-local ewv--local-webview nil)
 (defun ewv-browser--monitor-window-configuration-change()
   (save-excursion
     (save-window-excursion
