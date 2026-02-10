@@ -2,8 +2,14 @@
 
 
 ;;; load ewv.dll
-(load  (expand-file-name "target/debug/ewv.dll"
-                            (file-name-directory(or load-file-name (buffer-file-name)))))
+;; 先在根目录放一个 debug 版本的 ewv.dll, 方便其他人使用
+;; TODO 应该分发 release dll, 特别是后面增加 make-pipe-process 之后还需要针对 ucrt 和 gnu 分发两个不同的 dll
+(defvar ewv--current-dir (file-name-directory (or load-file-name (buffer-file-name))))
+(defvar ewv--dll-name (expand-file-name "target/debug/ewv.dll" ewv--current-dir))
+(unless (file-exists-p ewv--dll-name)
+  (setq ewv--dll-name (expand-file-name "ewv.dll" ewv--current-dir)))
+
+(load ewv--dll-name)
 
 
 
