@@ -138,7 +138,6 @@
       (keymap-local-set "f" (lambda (url) (interactive "fFile: ")    (ewv-browser--load ewv-id url ewv-buffer)))
       )
     (ewv-native-webview-add-extension ewv-id ewv--surfingkeys-dir)
-    (ewv-native-webview-add-extension ewv-id "C:/Users/xlzhang/AppData/Local/Microsoft/Edge/User Data/Default/Extensions/dmaldhchmoafliphkijbfhaomcgglmgd/3.4.5_0")    
     (ewv-browser--load ewv-id url ewv-buffer)
     )
   )
