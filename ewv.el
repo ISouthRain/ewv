@@ -1,7 +1,13 @@
 ;; -*- lexical-binding: t; -*-
 
 ;;; rust debug env setup
-(setenv "RUST_BACKTRACE" "1")
+;; does not work on Windows for dynamic module
+;; (setenv "RUST_BACKTRACE" "1")
+;; (setenv "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS" "--proxy-server=http://127.0.0.1:7887")
+;; use set command
+;; set RUST_BACKTRACE=1
+;; set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--proxy-server=127.0.0.1:7897"
+
 ;; cargo build --lib && emacs  --debug-init -Q -L . -l ewv.el
 
 (require 'cl-lib)
@@ -9,7 +15,6 @@
 (add-to-list 'load-path (file-name-directory (or load-file-name (buffer-file-name))))
 
 (require 'ewv-core)
-
 
 
 (defun ewv--get-all-frames()
