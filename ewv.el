@@ -16,6 +16,12 @@
 
 (require 'ewv-core)
 
+(defgroup ewv nil
+  "WebView2 Embed Emacs."
+  :link '(info-link :tag "Info Manual" "(ewv)")
+  :link '(url-link :tag "Website" "https://github.com/heartnheart/ewv")
+  :group 'tools
+  :prefix "ewv-")
 
 (defun ewv--get-all-frames()
   (seq-filter (lambda (frame)
