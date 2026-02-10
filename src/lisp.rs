@@ -60,11 +60,21 @@ fn native_webview_focus(_env: &Env, wv_id: i64) -> LispResult<()> {
     Ok(())
 }
 #[defun]
-fn native_webview_load(_env: &Env, wv_id: i64, url: String) -> LispResult<()> {
+fn native_webview_load_sync(_env: &Env, wv_id: i64, url: String) -> LispResult<()> {
     WEBVIEWS.with(|webviews| {
         let mut webviews = webviews.borrow_mut();
         let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.load(&url)
+        webview.load_sync(&url)
+    });
+    Ok(())
+}
+
+#[defun]
+fn native_webview_load(_env: &Env, wv_id: i64, url: String, cb: Value) -> LispResult<()> {
+    WEBVIEWS.with(|webviews| {
+        let mut webviews = webviews.borrow_mut();
+        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
+        webview.load(&url, cb)
     });
     Ok(())
 }

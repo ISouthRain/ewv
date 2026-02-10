@@ -45,7 +45,7 @@
                             live-list)
             (ewv--print "new window %S " w)
             (let ((new-id (ewv-native-webview-new (ewv-get-frame-hwnd) (ewv-mode-line--get-bounds w))))
-              (ewv-native-webview-load new-id ewv-mode-line-file)
+              (ewv-native-webview-load-sync new-id ewv-mode-line-file)
               (push (make-ewv-mode-line-webview :w w :id new-id) ewv-mode-line--webview-list)
               )
             )

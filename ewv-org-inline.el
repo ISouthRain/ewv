@@ -97,7 +97,7 @@
                       (sit-for 0.001)
                       (setq bounds (ewv-get-img-bounds))
                       (setq ewv-wv (ewv-native-webview-new (ewv-get-frame-hwnd) bounds))
-                      (ewv-native-webview-load ewv-wv url)
+                      (ewv-native-webview-load-sync ewv-wv url)
                       ;; (ewv-native-webview-resize ewv-wv width height)
                       (org-with-silent-modifications
                        (put-text-property begin end 'ewv-id ewv-wv)

@@ -18,7 +18,11 @@
 
 (defun ewv--eval-string (string)
   "Called from js. Always convert result to string"
-  (format "%s" (eval (car (read-from-string (format "(progn %s)" string))))))
+  (condition-case err
+
+      (format "%s" (eval (car (read-from-string (format "(progn %s)" string)))))
+    (error (ewv--print "ewv--eval-string error: %S" err))
+    ))
 
 (cl-defstruct ewv-webview
   "webview2 instance wrapper"
@@ -28,11 +32,6 @@
   url
   html-string
   )
-
-
-(defun ewv-navigate-to (webview url)
-  (interactive)
-  (ewv-native-webview-load (ewv-webview-id webview) url))
 
 
 ;;; debug

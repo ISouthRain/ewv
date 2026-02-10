@@ -107,6 +107,17 @@
 
 (defvar ewv--surfingkeys-dir (expand-file-name "extensions/kgnghhfkloifoabeaobjkgagcecbnppg/1.17.12_0" (file-name-directory (or load-file-name (buffer-file-name)))))
 ;;; browser: attached to buffer + occupy entire window
+
+(defun ewv-browser--load (ewv-id url buffer)
+    (ewv-native-webview-load ewv-id
+                             (ewv--browser-normalize-url url)
+                             (lambda (title url)
+                               (with-current-buffer buffer
+                                   (rename-buffer (format "*ewv-buffer-%d-%s*" ewv-id title))
+                                   )
+                                (switch-to-buffer buffer)
+                               ))
+)
 (defun ewv-browser-open-url (url)
   (interactive "sUrl[https://www.baidu.com]: ")
   (when (string-empty-p url)
@@ -123,12 +134,12 @@
       (setq ewv--local-webview ewv-obj)
       (keymap-local-set "i" (lambda () (interactive) (ewv-native-webview-focus ewv-id)(message "focus webview")))
       (keymap-local-set "t" (lambda () (interactive) (ewv-native-webview-set-visible ewv-id (not (ewv-native-webview-is-visible ewv-id)))(message "toggle")))
-      (keymap-local-set "e" (lambda (url) (interactive "sNew Url: ") (ewv-native-webview-load ewv-id (ewv--browser-normalize-url url))))
-      (keymap-local-set "f" (lambda (url) (interactive "fFile: ") (ewv-native-webview-load ewv-id (ewv--browser-normalize-url url))))
+      (keymap-local-set "e" (lambda (url) (interactive "sNew Url: ") (ewv-browser--load ewv-id url ewv-buffer)))
+      (keymap-local-set "f" (lambda (url) (interactive "fFile: ")    (ewv-browser--load ewv-id url ewv-buffer)))
       )
     (ewv-native-webview-add-extension ewv-id ewv--surfingkeys-dir)
-    (ewv-native-webview-load ewv-id url)
-    (switch-to-buffer ewv-buffer)
+    (ewv-native-webview-add-extension ewv-id "C:/Users/xlzhang/AppData/Local/Microsoft/Edge/User Data/Default/Extensions/dmaldhchmoafliphkijbfhaomcgglmgd/3.4.5_0")    
+    (ewv-browser--load ewv-id url ewv-buffer)
     )
   )
 (defun ewv-browser-open-file (file)

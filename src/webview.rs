@@ -659,7 +659,7 @@ impl Webview {
         }
         visible.into()
     }
-    pub fn load(&self, url: &str) {
+    pub fn load_sync(&self, url: &str) {
         unsafe { self.raw.Navigate(pwstr_from_str(url)).unwrap() }
         let wv = self.raw.clone();
         NavigationCompletedEventHandler::wait_for_async_operation(
@@ -670,6 +670,36 @@ impl Webview {
             Box::new(|_a, _| Ok(())),
         )
         .unwrap();
+    }
+    pub fn load(&self, url: &str, cb: Value) {
+        unsafe { self.raw.Navigate(pwstr_from_str(url)).unwrap() }
+        let wv = self.raw.clone();
+        let gcb = cb.make_global_ref();
+        unsafe {
+            wv.add_NavigationCompleted(
+                &NavigationCompletedEventHandler::create(Box::new(move |webview, _| {
+                    let webview = webview.unwrap();
+                    let mut title = PWSTR::default();
+                    webview.DocumentTitle(&mut title).unwrap();
+                    let title = title.to_string().unwrap();
+                    let mut url = PWSTR::default();
+                    webview.Source(&mut url).unwrap();
+                    let url = url.to_string().unwrap();
+                    EVENTS.with(|events| {
+                        let events = &mut *events.borrow_mut();
+                        events.push(Box::new(move |env: &Env| {
+                            let cb2 = gcb.bind(env);
+                            env.call(cb2, (title, url)).unwrap();
+                            gcb.free(env).unwrap();
+                        }));
+                    });
+                    notify_emacs_for_webview(&webview);
+                    Ok(())
+                })),
+                &mut 0,
+            )
+            .unwrap();
+        }
     }
     pub fn open_task_manager(&self) {
         let webview: ICoreWebView2_6 = self.raw.cast().unwrap();
