@@ -96,7 +96,9 @@
           (string-prefix-p "file://" url)
           (string-prefix-p "chrome-extension://" url)
           (string-prefix-p "extension://" url)
-          (string-prefix-p "edge://" url))
+          (string-prefix-p "edge://" url)
+          (string= "about:blank" url)
+          )
       url
     (if (file-exists-p url)
         (concat "file://" (expand-file-name url))
