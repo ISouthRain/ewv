@@ -44,3 +44,26 @@
       set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--proxy-server=127.0.0.1:7897"
       #+end_src
    2. 也可以使用 ZeroOmega 插件。但是 popup 弹窗无法正常使用
+* todo-list
+1. [ ] 将 webview2 更多的功能暴露到 elisp 层，在性能和写法不受太大影响的情况下尽可能使用 elisp 编写插件
+2. [ ] 更清晰的代码组织和命名规范
+   1. elisp 代码要根据功能使用对应前缀，private 函数应该使用 =--= 分割。使用 =defcustom= 提供用户选项。
+   2. elisp 函数默认是同步的，异步函数应该以 async 结尾并可选的接受一个回调
+   3. rust 代码减少 unwrap. com 代码需要重写。调研 rust 崩溃能否传播到 elisp 层。
+3. [ ] rust 回调 elisp 代码的异步消息机制需要改为 =open_channel= 需要 patch =emacs-module-rs=
+4. [ ] 减少外部依赖项，移除对 unzip 的依赖
+5. [ ] 更好的分发机制，melpa?
+6. =ewv-browser=
+   1. [ ] 重构 =ewv-extension= 为 =ewv-browser-extension= 并在下载之外提供开关功能
+   2. [ ] 整理测试可用的扩展列表
+   3. [ ] 针对 webview2 的限制定制部分扩展，以获得更好的 emacs 集成
+   4. [ ] evil 集成
+   5. [ ] 多 frame 管理
+   6. [ ] 用户数据目录定制
+   7. [ ] 其他插件可能无法实现的浏览器基本功能
+      1. [ ] 书签。考虑导入 edge
+      2. [ ] 历史记录
+      3. [ ] 下载
+7. [ ] =ewv-mode-line=
+8. [ ] =ewv-org-inline=
+9. [ ] =ewv-popup=
