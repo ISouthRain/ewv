@@ -77,7 +77,15 @@ fn native_webview_set_on_new_window_requested(_env: &Env, wv_id: i64, cb: Value)
     });
     Ok(())
 }
-
+#[defun]
+fn native_webview_set_on_focus(_env: &Env, wv_id: i64, cb: Value) -> LispResult<()> {
+    WEBVIEWS.with(|webviews| {
+        let mut webviews = webviews.borrow_mut();
+        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
+        webview.set_on_focus(cb);
+    });
+    Ok(())
+}
 #[defun]
 fn native_webview_load(_env: &Env, wv_id: i64, url: String, cb: Value) -> LispResult<()> {
     WEBVIEWS.with(|webviews| {

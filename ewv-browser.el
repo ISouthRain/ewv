@@ -136,6 +136,7 @@
                                                              ;;                          (ewv--browser-normalize-url url) #'ignore)
                                                              t
                                                              ))
+    (ewv-native-webview-set-on-focus ewv-id (lambda () (select-window (get-buffer-window ewv-buffer))))
     (with-current-buffer ewv-buffer
       ;; quick minor mode
       (setq ewv--local-webview ewv-obj)

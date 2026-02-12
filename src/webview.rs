@@ -475,6 +475,7 @@ impl Webview {
             settings.SetAreDefaultContextMenusEnabled(true).unwrap();
             settings.SetAreDevToolsEnabled(true).unwrap();
         }
+
         // unsafe {
         // webview.Navigate(h!("https://www.baidu.com")).unwrap();
         // webview.Navigate(h!("edge://gpu")).unwrap();
@@ -553,7 +554,7 @@ impl Webview {
         )
         .unwrap();
     }
-    pub fn set_on_new_window_requested(&mut self, cb: Value) {
+    pub fn set_on_new_window_requested(&self, cb: Value) {
         let mut token = 0;
 
         let gcb = Rc::new(cb.make_global_ref());
@@ -595,7 +596,32 @@ impl Webview {
         }));
         (unsafe { self.raw.add_NewWindowRequested(&handler, &mut token) }).unwrap();
     }
+    pub fn set_on_focus(&self, cb: Value) {
+        let mut token = 0;
 
+        let gcb = Rc::new(cb.make_global_ref());
+        let handler = FocusChangedEventHandler::create(Box::new(move |icontroller, _args| {
+            let Some(icontroller) = icontroller else {
+                return Ok(());
+            };
+            // let Some(args) = args else { return Ok(()) };
+            unsafe {
+                let iwebview = icontroller.CoreWebView2().unwrap();
+                CALLBACKS.with(|events| {
+                    let mut events = events.borrow_mut();
+                    events.push(Callback {
+                        rcb: Box::new(move |env: &Env, cb: Value| {
+                            let _value = env.call(cb, []).unwrap();
+                        }),
+                        gcb: Rc::clone(&gcb),
+                    });
+                });
+                notify_emacs_for_webview(&iwebview);
+            }
+            Ok(())
+        }));
+        (unsafe { self.controller.add_GotFocus(&handler, &mut token) }).unwrap();
+    }
     pub fn update_position(&self) {
         unsafe {
             self.controller.NotifyParentWindowPositionChanged().unwrap();
