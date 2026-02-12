@@ -906,7 +906,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ewv"
+name = "ewv_native"
 version = "0.1.0"
 dependencies = [
  "emacs",

@@ -170,7 +170,7 @@ fn native_init_for_frame<'a>(hwnd: isize) -> LispResult<()> {
 }
 
 // Register the initialization hook that Emacs will call when it loads the module.
-#[emacs::module]
+#[emacs::module(name="ewv")]
 fn init(_env: &Env) -> LispResult<()> {
     initialize_com();
     Ok(())
