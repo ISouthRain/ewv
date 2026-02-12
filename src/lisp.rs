@@ -68,6 +68,15 @@ fn native_webview_load_sync(_env: &Env, wv_id: i64, url: String) -> LispResult<(
     });
     Ok(())
 }
+#[defun]
+fn native_webview_set_on_new_window_requested(_env: &Env, wv_id: i64, cb: Value) -> LispResult<()> {
+    WEBVIEWS.with(|webviews| {
+        let mut webviews = webviews.borrow_mut();
+        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
+        webview.set_on_new_window_requested(cb);
+    });
+    Ok(())
+}
 
 #[defun]
 fn native_webview_load(_env: &Env, wv_id: i64, url: String, cb: Value) -> LispResult<()> {
@@ -141,6 +150,12 @@ fn native_webview_process_events(env: &Env) -> Result<i64> {
         let events = &mut *events.borrow_mut();
         while let Some(cb) = events.pop() {
             cb(env);
+        }
+    });
+    CALLBACKS.with(|events| {
+        let events = &mut *events.borrow_mut();
+        while let Some(Callback{rcb,  gcb, ..}) = events.pop() {
+            rcb(env, gcb.bind(env));
         }
     });
     Ok(0)

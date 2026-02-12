@@ -1,4 +1,4 @@
-use emacs::IntoLisp;
+use emacs::{GlobalRef, IntoLisp};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::mpsc;
 use webview2_com::*;
@@ -14,7 +14,6 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput,
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows_core::h;
 use windows_implement::implement;
 #[implement(IDispatch)]
 struct MyBridge;
@@ -301,7 +300,7 @@ impl IDispatch_Impl for MyBridge_Impl {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Webview {
     id: i64,
     hwnd: isize,
@@ -406,42 +405,7 @@ impl Webview {
                 )
                 .unwrap();
         }
-        let mut _token = 0;
-        (unsafe {
-            webview.add_NewWindowRequested(
-                &NewWindowRequestedEventHandler::create(Box::new(move |webview, args| {
-                    if let Some(args) = args {
-                        // args.SetHandled(true).unwrap();
-                        // let mut uri = windows::core::PWSTR::null();
-                        // args.Uri(&mut uri).unwrap();
-                        // webview.as_ref().unwrap().Navigate(uri).unwrap();
 
-                        let mut uri = windows::core::PWSTR::null();
-                        args.Uri(&mut uri).unwrap();
-                        let deferral = args.GetDeferral().unwrap();
-                        EVENTS.with(|events| {
-                            let events = &mut *events.borrow_mut();
-                            events.push(Box::new(move |env: &Env| {
-                                let lisp_expr = format!(
-                                    "(ewv-browser-open-url \"{}\")",
-                                    uri.to_string().unwrap()
-                                );
-                                println!("lisp_expr = {}", lisp_expr);
-                                let lisp_expr: emacs::Value = lisp_expr.into_lisp(env).unwrap();
-                                let _result = env.call("ewv--eval-string", [lisp_expr]).unwrap();
-                                args.SetHandled(true).unwrap();
-                                deferral.Complete().unwrap();
-                            }));
-                        });
-                        notify_emacs_for_webview(&webview.unwrap());
-                        // args.SetNewWindow(webview.as_ref().unwrap()).unwrap();
-                    }
-                    Ok(())
-                })),
-                &mut _token,
-            )
-        })
-        .unwrap();
         unsafe {
             let controller: ICoreWebView2Controller = c2.cast().unwrap();
             controller
@@ -589,6 +553,49 @@ impl Webview {
         )
         .unwrap();
     }
+    pub fn set_on_new_window_requested(&mut self, cb: Value) {
+        let mut token = 0;
+
+        let gcb = Rc::new(cb.make_global_ref());
+        let handler = NewWindowRequestedEventHandler::create(Box::new(move |iwebview, args| {
+            let Some(iwebview) = iwebview else {
+                return Ok(());
+            };
+            let Some(args) = args else { return Ok(()) };
+            // args.SetHandled(true).unwrap();
+            // let mut uri = windows::core::PWSTR::null();
+            // args.Uri(&mut uri).unwrap();
+            // webview.as_ref().unwrap().Navigate(uri).unwrap();
+            let iwebview2 = iwebview.clone();
+            unsafe {
+                CALLBACKS.with(|events| {
+                    let mut events = events.borrow_mut();
+                    let mut uri = windows::core::PWSTR::null();
+                    args.Uri(&mut uri).unwrap();
+                    let uri = uri.to_string().unwrap();
+                    let mut is_user_initiated = windows::core::BOOL::default();
+                    args.IsUserInitiated(&mut is_user_initiated).unwrap();
+                    println!("is_user_initiated = {:?}", is_user_initiated);
+
+                    let deferral: ICoreWebView2Deferral = args.GetDeferral().unwrap();
+                    events.push(Callback {
+                        rcb: Box::new(move |env: &Env, cb: Value| {
+                            let value = env.call(cb, (uri,)).unwrap();
+                            args.SetHandled(value.is_not_nil()).unwrap();
+                            deferral.Complete().unwrap();
+                        }),
+                        gcb: Rc::clone(&gcb),
+                    });
+                });
+                notify_emacs_for_webview(&iwebview2);
+            }
+
+            // args.SetNewWindow(webview.as_ref().unwrap()).unwrap();
+            Ok(())
+        }));
+        (unsafe { self.raw.add_NewWindowRequested(&handler, &mut token) }).unwrap();
+    }
+
     pub fn update_position(&self) {
         unsafe {
             self.controller.NotifyParentWindowPositionChanged().unwrap();

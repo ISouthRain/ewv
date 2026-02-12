@@ -1,5 +1,6 @@
 use unchecked_refcell::UncheckedRefCell as RefCell;
 use emacs::{Env, Value, defun};
+use std::rc::Rc;
 use windows::{
     Win32::{
         Foundation::{HINSTANCE, HMODULE, HWND, LPARAM, LRESULT, WPARAM},
@@ -28,11 +29,15 @@ include!("lisp.rs");
 include!("hooks.rs");
 
 
-
+struct Callback {
+    rcb: Box<dyn FnOnce(&Env, Value)>,
+    gcb: Rc<GlobalRef>,
+}
 
 thread_local! {
     static WEBVIEWS: RefCell<Vec<Webview>> = RefCell::new(Vec::new());
     static EVENTS: RefCell<Vec<Box<dyn FnOnce(&Env)>>> = RefCell::new(Vec::new());
+    static CALLBACKS: RefCell<Vec<Callback>> = RefCell::new(Vec::new());
 }
 
 

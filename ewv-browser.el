@@ -130,6 +130,12 @@
          (ewv-buffer (get-buffer-create ewv-buffer-name))
          (ewv-obj))
     (setq ewv-obj (make-ewv-browser-webview :id ewv-id :buffer ewv-buffer :hwnd hwnd :frame (selected-frame)))
+    (ewv-native-webview-set-on-new-window-requested ewv-id (lambda (url)
+                                                             (ewv-browser-open-url url)
+                                                             ;; (ewv-native-webview-load ewv-id
+                                                             ;;                          (ewv--browser-normalize-url url) #'ignore)
+                                                             t
+                                                             ))
     (with-current-buffer ewv-buffer
       ;; quick minor mode
       (setq ewv--local-webview ewv-obj)
