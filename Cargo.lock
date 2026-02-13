@@ -909,6 +909,7 @@ dependencies = [
 name = "ewv_native"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "emacs",
  "libc",
  "patch-crate",

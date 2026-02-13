@@ -1,5 +1,5 @@
 type LispResult<T> = emacs::Result<T>;
-
+use anyhow::{anyhow};
 fn rect_from_lisp(value: emacs::Value) -> LispResult<RECT> {
     let env = value.env;
     if !env.call("listp", [value])?.is_not_nil() {
@@ -20,6 +20,21 @@ fn rect_from_lisp(value: emacs::Value) -> LispResult<RECT> {
     rect.bottom = list.car()?;
     Ok(rect)
 }
+
+
+pub fn with_webview<F, T>(wv_id: i64, f: F) -> LispResult<T>
+where
+    F: FnOnce(&mut Webview) -> LispResult<T>,
+{
+    WEBVIEWS.with(|webviews| {
+        let mut webviews = webviews.borrow_mut();
+        let webview = webviews.iter_mut().find(|w| w.id == wv_id)
+            .ok_or(anyhow!("no webview with id({wv_id}) found"))?;
+        
+        f(webview)
+    })
+}
+
 #[defun]
 fn native_webview_new(hwnd: isize, bounds: emacs::Value) -> LispResult<i64> {
     let bounds = rect_from_lisp(bounds)?;
@@ -33,116 +48,85 @@ fn native_webview_new(hwnd: isize, bounds: emacs::Value) -> LispResult<i64> {
 }
 #[defun]
 fn native_webview_reparent(wv_id: i64, hwnd: isize) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.reparent(hwnd);
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+       Ok(webview.reparent(hwnd))
+    })
 }
 #[defun]
 fn native_webview_resize(_env: &Env, wv_id: i64, bounds: Value) -> LispResult<()> {
     let bounds = rect_from_lisp(bounds)?;
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.resize(bounds)
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.resize(bounds))
+    })
 }
 #[defun]
 fn native_webview_focus(_env: &Env, wv_id: i64) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.focus()
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.focus())
+    })
 }
 #[defun]
 fn native_webview_load_sync(_env: &Env, wv_id: i64, url: String) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.load_sync(&url)
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.load_sync(&url))
+    })
 }
 #[defun]
 fn native_webview_set_on_new_window_requested(_env: &Env, wv_id: i64, cb: Value) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.set_on_new_window_requested(cb);
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.set_on_new_window_requested(cb))
+    })
 }
 #[defun]
 fn native_webview_set_on_focus(_env: &Env, wv_id: i64, cb: Value) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.set_on_focus(cb);
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.set_on_focus(cb))
+    })
 }
 #[defun]
 fn native_webview_load(_env: &Env, wv_id: i64, url: String, cb: Value) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.load(&url, cb)
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.load(&url, cb))
+    })
 }
 #[defun]
-fn native_webview_set_visible(_env: &Env, wv_id: i64, visible: Value) -> Result<i64> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.set_visible(visible.is_not_nil());
-    });
-    Ok(0)
+fn native_webview_set_visible(_env: &Env, wv_id: i64, visible: Value) -> LispResult<()> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.set_visible(visible.is_not_nil()))
+    })
 }
 #[defun]
 fn native_webview_is_visible(wv_id: i64) -> LispResult<bool> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
+    with_webview(wv_id, |webview| {
         Ok(webview.visible())
     })
 }
 #[defun]
 fn native_webview_eval_js_sync<'a>(wv_id: i64, js: String) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.eval_js_sync(&js);
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.eval_js_sync(&js))
+    })
 }
 #[defun]
 fn native_webview_eval_js<'a>(wv_id: i64, js: String, cb: Value) -> LispResult<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.eval_js_cdp(&js, cb);
-    });
-    Ok(())
+    with_webview(wv_id, |webview| {
+        Ok(webview.eval_js_cdp(&js, cb))
+    })
 }
 
 #[defun]
-fn native_webview_close(_env: &Env, wv_id: i64) -> Result<()> {
+fn native_webview_close(_env: &Env, wv_id: i64) -> LispResult<()> {
     WEBVIEWS.with(|webviews| {
         let mut webviews = webviews.borrow_mut();
         let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
         webview.close();
         webviews.retain(|w| w.id != wv_id);
-    });
-    Ok(())
+        Ok(())
+    })
+  
 }
 #[defun]
-fn native_webview_open_task_manager(_env: &Env) -> Result<()> {
+fn native_webview_open_task_manager(_env: &Env) -> LispResult<()> {
     WEBVIEWS.with(|webviews| {
         let webviews = webviews.borrow_mut();
         if webviews.len() > 0 {
@@ -153,7 +137,7 @@ fn native_webview_open_task_manager(_env: &Env) -> Result<()> {
     Ok(())
 }
 #[defun]
-fn native_webview_process_events(env: &Env) -> Result<i64> {
+fn native_webview_process_events(env: &Env) -> LispResult<i64> {
     EVENTS.with(|events| {
         let events = &mut *events.borrow_mut();
         while let Some(cb) = events.pop() {
@@ -169,13 +153,10 @@ fn native_webview_process_events(env: &Env) -> Result<i64> {
     Ok(0)
 }
 #[defun]
-fn native_webview_add_extension(_env: &Env, wv_id: i64, ext_path: String) -> Result<()> {
-    WEBVIEWS.with(|webviews| {
-        let mut webviews = webviews.borrow_mut();
-        let webview = webviews.iter_mut().find(|w| w.id == wv_id).unwrap();
-        webview.add_extension(ext_path);
-    });
-    Ok(())
+fn native_webview_add_extension(_env: &Env, wv_id: i64, ext_path: String) -> LispResult<()> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.add_extension(ext_path))
+    })
 }
 
 // faster then (message)

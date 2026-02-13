@@ -6,6 +6,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1.0.101"
 emacs = "0.19.0"
 libc = "0.2.179"
 serde = {version = "1.0.228", features= ["derive"]}
