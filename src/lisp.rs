@@ -84,6 +84,12 @@ fn native_webview_set_on_focus(_env: &Env, wv_id: i64, cb: Value) -> LispResult<
     })
 }
 #[defun]
+fn native_webview_set_on_navigation_starting(_env: &Env, wv_id: i64, cb: Value) -> LispResult<()> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.set_on_navigation_starting(cb))
+    })
+}
+#[defun]
 fn native_webview_load(_env: &Env, wv_id: i64, url: String, cb: Value) -> LispResult<()> {
     with_webview(wv_id, |webview| {
         Ok(webview.load(&url, cb))

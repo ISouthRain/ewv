@@ -391,20 +391,20 @@ impl Webview {
 
         let webview = unsafe { controller.CoreWebView2().unwrap() };
 
-        unsafe {
-            webview
-                .add_NavigationStarting(
-                    &NavigationStartingEventHandler::create(Box::new(move |_, args| {
-                        // // Inspect URI
-                        let mut uri = PWSTR::default();
-                        args.unwrap().Uri(&mut uri)?;
-                        println!("Navigating to: {:?}", uri.to_string());
-                        Ok(())
-                    })),
-                    &mut 0, // token placeholder
-                )
-                .unwrap();
-        }
+        // unsafe {
+        //     webview
+        //         .add_NavigationStarting(
+        //             &NavigationStartingEventHandler::create(Box::new(move |_, args| {
+        //                 // // Inspect URI
+        //                 let mut uri = PWSTR::default();
+        //                 args.unwrap().Uri(&mut uri)?;
+        //                 println!("Navigating to: {:?}", uri.to_string());
+        //                 Ok(())
+        //             })),
+        //             &mut 0, // token placeholder
+        //         )
+        //         .unwrap();
+        // }
 
         unsafe {
             let controller: ICoreWebView2Controller = c2.cast().unwrap();
@@ -553,6 +553,34 @@ impl Webview {
             }),
         )
         .unwrap();
+    }
+    pub fn set_on_navigation_starting(&self, cb: Value) {
+        let mut token = 0;
+
+        let gcb = Rc::new(cb.make_global_ref());
+        let handler = NavigationStartingEventHandler::create(Box::new(move |iwebview, args| {
+            let Some(iwebview) = iwebview else {
+                return Ok(());
+            };
+            let Some(args) = args else { return Ok(()) };
+            unsafe {
+                CALLBACKS.with(|events| {
+                    let mut events = events.borrow_mut();
+                    let mut uri = windows::core::PWSTR::null();
+                    args.Uri(&mut uri).unwrap();
+                    let uri = uri.to_string().unwrap();
+                    events.push(Callback {
+                        rcb: Box::new(move |env: &Env, cb: Value| {
+                            let _ = env.call(cb, (uri,)).unwrap();
+                        }),
+                        gcb: Rc::clone(&gcb),
+                    });
+                });
+                notify_emacs_for_webview(&iwebview);
+            }
+            Ok(())
+        }));
+        (unsafe { self.raw.add_NavigationStarting(&handler, &mut token) }).unwrap();
     }
     pub fn set_on_new_window_requested(&self, cb: Value) {
         let mut token = 0;
