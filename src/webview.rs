@@ -308,15 +308,11 @@ pub struct Webview {
     bounds: RECT,
     controller: ICoreWebView2Controller,
 }
-fn notify_emacs_for_webview(webview: &ICoreWebView2) {
-    WEBVIEWS.with(|webviews| {
-        let webviews = webviews.borrow();
-        let wv = webviews.iter().find(|w| &w.raw == webview).unwrap();
-        let hwnd = HWND(wv.hwnd as *mut libc::c_void);
-        unsafe {
-            PostMessageW(Some(hwnd), WM_INPUTLANGCHANGE, WPARAM(0), LPARAM(0)).unwrap();
-        }
-    });
+fn notify_emacs_for_webview(hwnd_id: isize) {
+    let hwnd = HWND(hwnd_id as *mut libc::c_void);
+    unsafe {
+        PostMessageW(Some(hwnd), WM_INPUTLANGCHANGE, WPARAM(0), LPARAM(0)).unwrap();
+    }
 }
 impl Webview {
     pub fn new(hwnd_id: isize, bounds: RECT) -> Self {
@@ -556,10 +552,11 @@ impl Webview {
     }
     pub fn set_on_navigation_starting(&self, cb: Value) {
         let mut token = 0;
+        let hwnd_id = self.hwnd;
 
         let gcb = Rc::new(cb.make_global_ref());
         let handler = NavigationStartingEventHandler::create(Box::new(move |iwebview, args| {
-            let Some(iwebview) = iwebview else {
+            let Some(_iwebview) = iwebview else {
                 return Ok(());
             };
             let Some(args) = args else { return Ok(()) };
@@ -576,7 +573,7 @@ impl Webview {
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(&iwebview);
+                notify_emacs_for_webview(hwnd_id);
             }
             Ok(())
         }));
@@ -586,6 +583,7 @@ impl Webview {
         let mut token = 0;
 
         let gcb = Rc::new(cb.make_global_ref());
+        let hwnd_id = self.hwnd;
         let handler = NewWindowRequestedEventHandler::create(Box::new(move |iwebview, args| {
             let Some(iwebview) = iwebview else {
                 return Ok(());
@@ -616,7 +614,7 @@ impl Webview {
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(&iwebview2);
+                notify_emacs_for_webview(hwnd_id);
             }
 
             // args.SetNewWindow(webview.as_ref().unwrap()).unwrap();
@@ -628,6 +626,7 @@ impl Webview {
         let mut token = 0;
 
         let gcb = Rc::new(cb.make_global_ref());
+        let hwnd_id = self.hwnd;
         let handler = FocusChangedEventHandler::create(Box::new(move |icontroller, _args| {
             let Some(icontroller) = icontroller else {
                 return Ok(());
@@ -644,7 +643,7 @@ impl Webview {
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(&iwebview);
+                notify_emacs_for_webview(hwnd_id);
             }
             Ok(())
         }));
@@ -736,6 +735,7 @@ impl Webview {
         unsafe { self.raw.Navigate(pwstr_from_str(url)).unwrap() }
         let wv = self.raw.clone();
         let gcb = cb.make_global_ref();
+        let hwnd_id = self.hwnd;
         unsafe {
             wv.add_NavigationCompleted(
                 &NavigationCompletedEventHandler::create(Box::new(move |webview, _| {
@@ -754,7 +754,7 @@ impl Webview {
                             gcb.free(env).unwrap();
                         }));
                     });
-                    notify_emacs_for_webview(&webview);
+                    notify_emacs_for_webview(hwnd_id);
                     Ok(())
                 })),
                 &mut 0,
@@ -804,6 +804,8 @@ impl Webview {
         println!("eval_js start");
         let webview: ICoreWebView2_21 = raw.cast().unwrap();
         let webview2 = webview.clone();
+
+        let hwnd_id = self.hwnd;
         unsafe {
             webview
                 .ExecuteScriptWithResult(
@@ -822,7 +824,7 @@ impl Webview {
                                 gcb.free(env).unwrap();
                             }));
                         });
-                        notify_emacs_for_webview(&webview2);
+                        notify_emacs_for_webview(hwnd_id);
                         Ok(())
                     })),
                 )
