@@ -224,7 +224,7 @@
       (ewv-browser-mode)
       (setq ewv-browser--local-webview ewv-obj)
       )
-    (ewv--extension-load ewv-id)
+    ;; (ewv--extension-load ewv-id)
     (ewv-browser--load ewv-id url ewv-buffer)
     )
   )
