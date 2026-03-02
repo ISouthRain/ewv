@@ -47,6 +47,7 @@
   (setq ewv-browser--on-navigation-starting callback))
 
 (defun ewv-browser--enable-global-hooks ()
+  (add-hook 'window-configuration-change-hook #'ewv-browser--monitor-window-configuration-change)
   (add-hook 'delete-frame-functions #'ewv--delete-frame-function))
 
 (defun ewv-browser--disable-global-hooks ()
@@ -121,7 +122,6 @@
         )
       )))
 
-(add-hook 'window-configuration-change-hook #'ewv-browser--monitor-window-configuration-change)
 
 ;; ;; window-configuration-change-hook not work for window deletion
 ;; (define-advice delete-window (:before  (&optional window) ewv-before-delte-window)
