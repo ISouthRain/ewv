@@ -510,6 +510,41 @@ impl Webview {
         //     Box::new(|a, _| Ok(())),
         // )
         // .unwrap();
+
+        {
+            let webview: ICoreWebView2_28 = webview.cast().unwrap();
+            let profile = unsafe {
+                webview
+                    .Profile()
+                    .unwrap()
+                    .cast::<ICoreWebView2Profile7>()
+                    .unwrap()
+            };
+            ProfileGetBrowserExtensionsCompletedHandler::wait_for_async_operation(
+                Box::new(move |handler| unsafe {
+                    profile.GetBrowserExtensions(&handler).unwrap();
+                    Ok(())
+                }),
+                Box::new(move |_error_code, extensions| unsafe {
+                    let extensions = extensions.unwrap();
+                    let mut count = 0;
+                    extensions.Count(&mut count).unwrap();
+                    for i in 0..count {
+                        let extension = extensions.GetValueAtIndex(i).unwrap();
+                        let mut name = PWSTR::default();
+                        extension.Name(&mut name).unwrap();
+                        let mut id = PWSTR::default();
+                        extension.Id(&mut id).unwrap();
+                        println!(
+                            "existing extension name {:?} id {:?}",
+                            name.to_string(),
+                            id.to_string()
+                        );
+                    }
+                    Ok(())
+                }),
+            ).unwrap();
+        }
         Webview {
             id: new_webview_id(),
             hwnd: hwnd_id,
