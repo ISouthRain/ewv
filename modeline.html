@@ -6,9 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Greeting</title>
     <script>
-        function updateModeLine(bufferName, selected) {
+        function updateModeLine(bufferName, selected, point, buffer_file_coding_system, buffer_read_only, buffer_modified_p) {
             document.querySelector("#buffer-name").innerText = bufferName;
-            document.querySelector("body").style.backgroundColor = (selected === 't') ? 'yellow' : 'green'
+            document.querySelector("#point").innerText = point;
+            document.querySelector("#buffer-file-coding-system").innerText = buffer_file_coding_system;
+            document.querySelector("#buffer-read-only").innerText = (buffer_read_only !== 'nil' )? '🔒' : '🔓';
+            document.querySelector("#buffer-modified-p").innerText = (buffer_modified_p !== 'nil') ? '📝' : '📄';
+            // document.querySelector("body").style.backgroundColor = (selected === 't') ? 'yellow' : 'green'
+            document.querySelector("body").style.backgroundColor = 'transparent' 
 	    // hello world is good test good this is good and bad
         }
     </script>
@@ -20,12 +25,14 @@
             width: 100%;
             font-size: 20px;
             /* width: 100% works fine as it defaults to the viewport width */
-            background-color: red;
+            /* background-color: red; */
+            background-color: transparent;
+            background: transparent;
         }
 
         body {
             min-height: 100vh;
-            background-color: green;
+            /* background-color: green; */
             font-size: 60vh;
         }
 
@@ -40,18 +47,18 @@
             /* Aligns items vertically in the center */
         }
 
-        #starter {
-            flex: 0 0 20px;
-            background-color: black;
-        }
     </style>
 </head>
 
 <body>
 
     <div class="mode-line">
-        <div id="starter">h</div>
+        <div id="buffer-file-coding-system"></div>
+        <div id="buffer-read-only"></div>
+        <div id="buffer-modified-p"></div>
         <div id="buffer-name">buffer name</div>
+        <div id="point"></div>
+        
         <div id="buffer-size">buffer size</div>
     </div>
     <script>

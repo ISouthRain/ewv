@@ -816,6 +816,17 @@ impl Webview {
         }
         self.hwnd = hwnd_id;
     }
+    pub fn set_default_background_color(&mut self, a: u8, r: u8, g:u8, b: u8) {
+        let tcolor = COREWEBVIEW2_COLOR {
+            A: a, 
+            R: r,
+            G: g, 
+            B: b
+        };
+        unsafe {
+            self.controller.cast::<ICoreWebView2Controller2>().unwrap().SetDefaultBackgroundColor(tcolor).unwrap();
+        }
+    }
     pub fn eval_js_sync(&self, js: &str) {
         let js = pwstr_from_str(js);
         let webview: ICoreWebView2_21 = self.raw.cast().unwrap();

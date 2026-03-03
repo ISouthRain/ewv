@@ -16,7 +16,10 @@
 (defun ewv-mode-line--get-bounds(&optional window)
   (let ((b1 (window-pixel-edges window))
         (b2 (window-body-pixel-edges window)))
-    (list (nth 0 b1) (nth 3 b2) (nth 2 b1) (nth 3 b1))))
+    ; (list (nth 0 b1) (nth 3 b2) (nth 2 b1) (nth 3 b1))
+    ; offset for debug
+    (list (nth 0 b1) (- (nth 3 b2) 20) (nth 2 b1) (- (nth 3 b1) 20))
+    ))
 
 (defun ewv-mode-line--monitor-window-mode-line()
   (save-excursion
@@ -45,6 +48,7 @@
                             live-list)
             (ewv--print "new window %S " w)
             (let ((new-id (ewv-native-webview-new (ewv-get-frame-hwnd) (ewv-mode-line--get-bounds w))))
+              ; (ewv-native-webview-set-default-background-color new-id 0 0 0 0)
               (ewv-native-webview-load-sync new-id ewv-mode-line-file)
               (push (make-ewv-mode-line-webview :w w :id new-id) ewv-mode-line--webview-list)
               )
@@ -53,9 +57,14 @@
         (dolist (wv ewv-mode-line--webview-list)
           (ewv-with-struct-slots (w id) ewv-mode-line-webview wv
                                  (with-current-buffer (window-buffer w)
-                                   (ewv-native-webview-eval-js id (format "updateModeLine('%s', '%s')"
+                                   (ewv-native-webview-eval-js id (format "updateModeLine('%s', '%s', '%s:%s', '%s', '%s', '%s' )"
                                                                           (buffer-name)
                                                                           (eq (selected-window) w)
+                                                                          (line-number-at-pos) 
+                                                                          (current-column)
+                                                                          buffer-file-coding-system
+                                                                          buffer-read-only 
+                                                                          (buffer-modified-p)
                                                                           ) #'identity)
                                    )
                                  )
@@ -65,5 +74,6 @@
     )
   )
 (add-hook 'window-state-change-hook #'ewv-mode-line--monitor-window-mode-line)
+(add-hook 'post-command-hook #'ewv-mode-line--monitor-window-mode-line)
 
 (provide 'ewv-mode-line)

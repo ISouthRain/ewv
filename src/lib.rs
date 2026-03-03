@@ -6,13 +6,11 @@ use windows::{
         Foundation::{HINSTANCE, HMODULE, HWND, LPARAM, LRESULT, WPARAM},
         System::{
             Com:: {
-                COINIT_APARTMENTTHREADED, 
-                CoInitializeEx,
-            },
-            LibraryLoader::{
+                COINIT_APARTMENTTHREADED, CoInitialize, CoInitializeEx
+            }, LibraryLoader::{
                 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleHandleExW,
-            }, WinRT::{
+            }, Threading::GetCurrentThreadId, WinRT::{
                 RO_INIT_SINGLETHREADED, RoInitialize,
             }
         },
@@ -48,9 +46,12 @@ thread_local! {
 pub fn initialize_com() {
     unsafe {
         // should be paired with RoUnintialize, but emacs dynamic module has no unload mechanism
-        let _ = RoInitialize(RO_INIT_SINGLETHREADED);
+        let _ = RoInitialize(RO_INIT_SINGLETHREADED).unwrap();
         // RoInitialize should be sufficient, but sometimes I see CoInitialize not called error
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap();
+        // let _ = CoInitialize(None);
+        let id = GetCurrentThreadId();
+        println!("main tid = {id}");
     }
 }
 

@@ -108,6 +108,12 @@ fn native_webview_is_visible(wv_id: i64) -> LispResult<bool> {
     })
 }
 #[defun]
+fn native_webview_set_default_background_color(wv_id: i64, a: u8, r: u8, g:u8, b:u8)-> LispResult<()> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.set_default_background_color(a, r, g, b))
+    })
+}
+#[defun]
 fn native_webview_eval_js_sync<'a>(wv_id: i64, js: String) -> LispResult<()> {
     with_webview(wv_id, |webview| {
         Ok(webview.eval_js_sync(&js))
@@ -164,6 +170,7 @@ fn native_webview_add_extension(_env: &Env, wv_id: i64, ext_path: String) -> Lis
         Ok(webview.add_extension(ext_path))
     })
 }
+
 
 // faster then (message)
 #[defun]
