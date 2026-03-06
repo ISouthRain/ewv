@@ -14,12 +14,19 @@
 
 
 
+(defun ewv--get-window-edges(&optional window)
+  (window-body-pixel-edges window))
+
+;; 配合 dynamic module 处理异步事件 https://nullprogram.com/blog/2017/02/14/
+(define-key special-event-map [language-change]
+  (lambda ()
+    (interactive)
+    (ewv-native-webview-process-events)))
+
 ;;; core
 (defun ewv-get-frame-hwnd (&optional frame)
   "Emasc frame to win32 HWND"
-  (string-to-number (frame-parameter (or frame (selected-frame))
-                                     'window-id)
-                    10))
+  (string-to-number (frame-parameter (or frame (selected-frame)) 'window-id) 10))
 
 
 (defun ewv--eval-string (string)
@@ -68,5 +75,6 @@
        ,@body)))
 
 
+(ewv-native-init-frame-thread-hook)
 ;;; end
 (provide 'ewv-core)

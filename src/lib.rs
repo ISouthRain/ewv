@@ -31,7 +31,7 @@ include!("hooks.rs");
 
 
 struct Callback {
-    rcb: Box<dyn FnOnce(&Env, Value)>,
+    rcb: Box<dyn FnOnce(&Env, Value)-> LispResult<()>>,
     gcb: Rc<GlobalRef>,
 }
 
@@ -51,8 +51,7 @@ pub fn initialize_com() {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap();
         // let _ = CoInitialize(None);
         let id = GetCurrentThreadId();
-        println!("main tid = {id}");
+        println!("lisp thread id = {id}");
     }
 }
-
 

@@ -34,13 +34,36 @@ where
         f(webview)
     })
 }
+macro_rules! plist_get {
+    // 获取 Option<String> 类型的值
+    ($env:expr, $options:expr, $key:expr, as Option<String>) => {
+        $env.call("plist-get", ($options, $env.intern($key)?))?
+            .into_rust::<Option<String>>()?
+    };
+    // 获取 bool 类型的值（基于 Lisp 的 nil 判断）
+    ($env:expr, $options:expr, $key:expr, as bool) => {
+        $env.call("plist-get", ($options, $env.intern($key)?))?
+            .is_not_nil()
+    };
+}
+#[defun(user_ptr)]
+fn native_environment_new1(env: &Env, options: emacs::Value) -> LispResult<Environment>{
+    let browser_executable_folder = plist_get!(env, options, ":browser-executable-folder", as Option<String>);
+    let user_data_folder = plist_get!(env, options, ":user-data-folder", as Option<String>);
+    let are_browser_extensions_enabled = plist_get!(env, options, ":are-browser-extensions-enabled", as bool);
+
+    println!("browser_executable_folder = {browser_executable_folder:?}");
+    println!("user_data_folder = {user_data_folder:?}");
+    println!("are_browser_extensions_enabled = {are_browser_extensions_enabled:?}");
+    Ok(Environment::new(browser_executable_folder, user_data_folder, are_browser_extensions_enabled))
+}
 
 #[defun]
-fn native_webview_new(hwnd: isize, bounds: emacs::Value) -> LispResult<i64> {
-    let bounds = rect_from_lisp(bounds)?;
+fn native_webview_new(hwnd: isize, wenv: &Environment) -> LispResult<i64> {
+    // let bounds = rect_from_lisp(bounds)?;
     WEBVIEWS.with(|webviews| {
         let mut webviews = webviews.borrow_mut();
-        let webview = Webview::new(hwnd, bounds);
+        let webview = Webview::new(hwnd, wenv);
         webviews.push(webview);
         let webview = webviews.last().unwrap();
         Ok(webview.id)
@@ -61,7 +84,7 @@ fn native_webview_resize(_env: &Env, wv_id: i64, bounds: Value) -> LispResult<()
 }
 #[defun]
 fn native_webview_focus(_env: &Env, wv_id: i64) -> LispResult<()> {
-    with_webview(wv_id, |webview| {
+    with_webview(wv_id, |webview: &mut Webview| {
         Ok(webview.focus())
     })
 }
@@ -149,20 +172,21 @@ fn native_webview_open_task_manager(_env: &Env) -> LispResult<()> {
     Ok(())
 }
 #[defun]
-fn native_webview_process_events(env: &Env) -> LispResult<i64> {
+fn native_webview_process_events(env: &Env) -> LispResult<()> {
     EVENTS.with(|events| {
         let events = &mut *events.borrow_mut();
         while let Some(cb) = events.pop() {
             cb(env);
         }
     });
-    CALLBACKS.with(|events| {
+    CALLBACKS.with(|events| -> LispResult<()> {
         let events = &mut *events.borrow_mut();
         while let Some(Callback{rcb,  gcb, ..}) = events.pop() {
-            rcb(env, gcb.bind(env));
+            rcb(env, gcb.bind(env))?
         }
-    });
-    Ok(0)
+        Ok(())
+    })?;
+    Ok(())
 }
 #[defun]
 fn native_webview_add_extension(_env: &Env, wv_id: i64, ext_path: String) -> LispResult<()> {
@@ -181,10 +205,26 @@ fn native_print(message: String) -> LispResult<()> {
 
 /// init compositor for specific frame, will be called from elisp side
 #[defun]
-fn native_init_for_frame<'a>(hwnd: isize) -> LispResult<()> {
-    setup_frame_hook(hwnd);
+fn native_init_frame_thread_hook(env: &Env) -> LispResult<()> {
+    // 所有 frame 共享一个 thread, 所以注册一次即可
+    let frame = env.call("selected-frame", [])?;
+    let hwnd = get_frame_hwnd(frame)?;
+
+    setup_frame_thread_hook(hwnd);
     Ok(())
 }
+
+fn eval_elisp<'a>(env: &'a Env, expr: &str) -> LispResult<Value<'a>> {
+    let sexp = env.call("read", (expr,))?;
+    env.call("eval", (sexp,))
+}
+fn get_frame_hwnd(frame: emacs::Value)-> LispResult<HWND> {
+    let env = frame.env;
+    let hwnd_id: isize = env.call("frame-parameter", (frame, env.intern("window-id")?))?.into_rust::<String>()?.parse()?;
+    Ok(HWND(hwnd_id as *mut libc::c_void))
+}
+
+
 
 // Register the initialization hook that Emacs will call when it loads the module.
 #[emacs::module(name="ewv")]

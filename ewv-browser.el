@@ -1,6 +1,6 @@
 ;; -*- lexical-binding: t; -*-
 
-(require 'ewv-extension)
+(require 'ewv-core)
 
 (cl-defstruct ewv-browser-webview
   "webview2 instance wrapper"
@@ -16,6 +16,19 @@
 (defvar-local ewv-browser--local-webview nil)
 (defvar-local ewv-browser--on-navigation-starting nil)
 (defvar-local ewv-browser--registered nil)
+
+(defvar ewv-browser--environment nil)
+
+;; TODO emacs-module-rs 目前不支持接受变长参数
+(defun ewv-native-environment-new (&rest args)
+  (ewv-native-environment-new1 args))
+
+(defun ewv-browser-native-webview-new(&optional hwnd)
+  (unless ewv-browser--environment
+    (setq ewv-browser--environment
+          (ewv-native-environment-new :are-browser-extensions-enabled t )))
+  (ewv-native-webview-new (or hwnd (ewv-get-frame-hwnd)) ewv-browser--environment)
+  )
 
 (defvar ewv-browser--active-count 0)
 
@@ -185,24 +198,27 @@
                              (switch-to-buffer buffer)
                              ))
   )
+
 (defun ewv-browser-open-url (url)
   (interactive "sUrl[https://www.baidu.com]: ")
   (when (string-empty-p url)
     (setq url "https://www.baidu.com"))
   (setq url (ewv--browser-normalize-url url))
   (let* ((hwnd (ewv-get-frame-hwnd))
-         (ewv-id (ewv-native-webview-new hwnd (list 0 0 1 1)))
+         (ewv-id (ewv-browser-native-webview-new hwnd))
          (ewv-buffer-name (format "*ewv-buffer-%d*" ewv-id))
          (ewv-buffer (get-buffer-create ewv-buffer-name))
          (ewv-obj))
     (setq ewv-obj (make-ewv-browser-webview :id ewv-id :buffer ewv-buffer :hwnd hwnd :frame (selected-frame)))
     (ewv-native-webview-set-on-new-window-requested ewv-id (lambda (url)
+                                                             (ewv--print "debug url = %S" url)
                                                              (ewv-browser-open-url url)
-                                                             ;; (ewv-native-webview-load ewv-id
-                                                             ;;                          (ewv--browser-normalize-url url) #'ignore)
+                                                             ;; ;; (ewv-native-webview-load ewv-id
+                                                             ;; ;;                          (ewv--browser-normalize-url url) #'ignore)
                                                              t
-                                                             ))
-    (ewv-native-webview-set-on-focus ewv-id (lambda () (select-window (get-buffer-window ewv-buffer))))
+                                                             )
+                                                    )
+    (ewv-native-webview-set-on-focus ewv-id (lambda (focus) (ewv--print "browser focus = %S" focus) (and focus (select-window (get-buffer-window ewv-buffer)))))
     (ewv-native-webview-set-on-navigation-starting ewv-id
                                                    (lambda (url)
                                                      (with-current-buffer ewv-buffer
@@ -224,7 +240,9 @@
       (ewv-browser-mode)
       (setq ewv-browser--local-webview ewv-obj)
       )
-    ;; (ewv--extension-load ewv-id)
+                                        ; (ewv--extension-load ewv-id)
+    ;; (ewv-native-webview-add-extension ewv-id "C:/Users/xlzhang/AppData/Local/Microsoft/Edge SxS/User Data/Profile 2/Extensions/dmaldhchmoafliphkijbfhaomcgglmgd/3.4.5_0")
+    ;; (ewv-native-webview-add-extension ewv-id "C:/Users/xlzhang/AppData/Local/Microsoft/Edge Beta/User Data/Default/Extensions/kgnghhfkloifoabeaobjkgagcecbnppg/1.17.12_1")
     (ewv-browser--load ewv-id url ewv-buffer)
     )
   )
@@ -232,4 +250,28 @@
   (interactive "fFile: ")
   (ewv-browser-open-url (ewv--browser-normalize-url file))
   )
+
+(defvar ewv-browser-extension--wvid nil)
+(define-key-after global-map [tool-bar seperator-4]
+  menu-bar-separator)
+;; (set-frame-parameter nil 'tool-bar-lines 10)
+
+(defvar ewv-browser-address-bar-file
+  (expand-file-name "address-bar.html" (file-name-directory (or load-file-name (buffer-file-name)))))
+
+(unless ewv-browser-extension--wvid
+  (setq ewv-browser-extension--wvid (ewv-browser-native-webview-new))
+  (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)) )
+
+  (ewv-native-webview-load-sync ewv-browser-extension--wvid ewv-browser-address-bar-file)
+  (ewv-native-webview-set-visible ewv-browser-extension--wvid t)
+  ;; (ewv-native-webview-set-on-focus ewv-browser-extension--wvid
+  ;;                                  (lambda (focus) (ewv--print "focus = %S" focus) (unless focus (ewv-native-webview-set-visible ewv-browser-extension--wvid nil))))
+  )
+(defun ewv-browser--monitor-address-bar()
+  (ewv-native-webview-set-visible ewv-browser-extension--wvid (bound-and-true-p ewv-browser--local-webview))
+  (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)))
+  )
+(add-hook 'window-state-change-hook #'ewv-browser--monitor-address-bar)
+
 (provide 'ewv-browser)

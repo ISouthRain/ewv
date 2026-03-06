@@ -20,19 +20,18 @@ unsafe extern "system" fn win32_frame_hook(
     unsafe { WindowsAndMessaging::CallNextHookEx(None, n_code, w_param, l_param) }
 }
 
-
-fn setup_frame_hook(hwnd: isize) {
-    let hwnd = HWND(hwnd as *mut libc::c_void);
+fn setup_frame_thread_hook(hwnd: HWND) {
     let hook_proc = win32_frame_hook;
     let hook_id = WindowsAndMessaging::WH_GETMESSAGE;
     unsafe {
         let hwnd_tid = GetWindowThreadProcessId(hwnd, None);
         let h_instance = get_dll_hinstance();
+        // 监听特定线程的 hook, 可以不在 emacs 退出的时候 UnhookWindowsHookEx
         let _hook_handle = WindowsAndMessaging::SetWindowsHookExW(
             hook_id,
             Some(hook_proc),
             Some(h_instance),
-            hwnd_tid, // 全局钩子，设置为0
+            hwnd_tid,
         )
         .unwrap();
     }
