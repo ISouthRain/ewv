@@ -15,10 +15,9 @@
 
 (add-to-list 'load-path (file-name-directory (or load-file-name (buffer-file-name))))
 
-(require 'ewv-core)
 
 (defgroup ewv nil
-  "WebView2 Embed Emacs."
+  "Emacs Webview2"
   :link '(info-link :tag "Info Manual" "(ewv)")
   :link '(url-link :tag "Website" "https://github.com/heartnheart/ewv")
   :group 'tools

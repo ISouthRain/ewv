@@ -1,24 +1,21 @@
-use unchecked_refcell::UncheckedRefCell as RefCell;
 use emacs::{Env, Value, defun};
 use std::rc::Rc;
+use unchecked_refcell::UncheckedRefCell as RefCell;
 use windows::{
     Win32::{
         Foundation::{HINSTANCE, HMODULE, HWND, LPARAM, LRESULT, WPARAM},
         System::{
-            Com:: {
-                COINIT_APARTMENTTHREADED, CoInitialize, CoInitializeEx
-            }, LibraryLoader::{
+            Com::{COINIT_APARTMENTTHREADED, CoInitializeEx},
+            LibraryLoader::{
                 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
                 GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleHandleExW,
-            }, Threading::GetCurrentThreadId, WinRT::{
-                RO_INIT_SINGLETHREADED, RoInitialize,
-            }
+            },
+            Threading::GetCurrentThreadId,
+            WinRT::{RO_INIT_SINGLETHREADED, RoInitialize},
         },
         UI::{
             Input::KeyboardAndMouse::{GetActiveWindow, SetFocus},
-            WindowsAndMessaging::{
-                self, GetWindowThreadProcessId, MSG,
-            },
+            WindowsAndMessaging::{self, GetWindowThreadProcessId, MSG},
         },
     },
     core::{Interface, PCWSTR, PWSTR},
@@ -29,9 +26,8 @@ include!("webview.rs");
 include!("lisp.rs");
 include!("hooks.rs");
 
-
 struct Callback {
-    rcb: Box<dyn FnOnce(&Env, Value)-> LispResult<()>>,
+    rcb: Box<dyn FnOnce(&Env, Value) -> LispResult<()>>,
     gcb: Rc<GlobalRef>,
 }
 
@@ -40,8 +36,6 @@ thread_local! {
     static EVENTS: RefCell<Vec<Box<dyn FnOnce(&Env)>>> = RefCell::new(Vec::new());
     static CALLBACKS: RefCell<Vec<Callback>> = RefCell::new(Vec::new());
 }
-
-
 
 pub fn initialize_com() {
     unsafe {
@@ -54,4 +48,3 @@ pub fn initialize_com() {
         println!("lisp thread id = {id}");
     }
 }
-

@@ -15,7 +15,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows_implement::implement;
-use windows::core::h;
+// use windows::core::h;
 use windows::core::HSTRING;
 #[implement(IDispatch)]
 struct MyBridge;
@@ -305,24 +305,28 @@ impl IDispatch_Impl for MyBridge_Impl {
 #[derive(Debug)]
 pub struct Webview {
     id: i64,
-    hwnd: isize,
+    hwnd: HWND,
     raw: ICoreWebView2,
     controller: ICoreWebView2Controller,
 }
-fn notify_emacs_for_webview(hwnd_id: isize) {
-    let hwnd = HWND(hwnd_id as *mut libc::c_void);
+fn notify_emacs_for_webview(controller: &ICoreWebView2Controller) {
+    let mut hwnd = HWND::default();
     unsafe {
+        controller.ParentWindow(&mut hwnd).unwrap();
+        // println!("notify emacs for webview {hwnd:?}");
         PostMessageW(Some(hwnd), WM_INPUTLANGCHANGE, WPARAM(0), LPARAM(0)).unwrap();
     }
 }
 #[derive(Debug)]
 pub struct Environment {
-    raw: ICoreWebView2Environment
+    raw: ICoreWebView2Environment,
 }
 impl Environment {
-    fn new(browser_executable_folder: Option<String>, 
-           user_data_folder: Option<String>,
-           are_browser_extensions_enabled: bool) -> Self {
+    fn new(
+        browser_executable_folder: Option<String>,
+        user_data_folder: Option<String>,
+        are_browser_extensions_enabled: bool,
+    ) -> Self {
         let environment = {
             let (tx, rx) = mpsc::channel();
             CreateCoreWebView2EnvironmentCompletedHandler::wait_for_async_operation(
@@ -337,12 +341,17 @@ impl Environment {
                     // let user_data_folder = h!(r"C:\Users\xlzhang\AppData\Local\Microsoft\Edge Beta");
                     // let browser_executable_folder = h!(r"C:\Program Files (x86)\Microsoft\Edge Beta\Application\146.0.3856.33");
                     // let user_data_folder = h!(r"C:\Users\xlzhang\AppData\Local\Microsoft\Edge");
-                    let browser_executable_folder = browser_executable_folder.map(|s| HSTRING::from(s));
+                    let browser_executable_folder =
+                        browser_executable_folder.map(|s| HSTRING::from(s));
                     let user_data_folder = user_data_folder.map(|s| HSTRING::from(s));
                     // let browser_executable_folder = h!(r"C:\Program Files (x86)\Microsoft\Edge\Application\145.0.3800.82");
                     CreateCoreWebView2EnvironmentWithOptions(
-                        browser_executable_folder.map(|s|PCWSTR::from_raw(s.as_ptr())).as_ref(),
-                        user_data_folder.map(|s|PCWSTR::from_raw(s.as_ptr())).as_ref(),
+                        browser_executable_folder
+                            .map(|s| PCWSTR::from_raw(s.as_ptr()))
+                            .as_ref(),
+                        user_data_folder
+                            .map(|s| PCWSTR::from_raw(s.as_ptr()))
+                            .as_ref(),
                         &env_options,
                         &environmentcreatedhandler,
                     )
@@ -359,15 +368,11 @@ impl Environment {
 
             rx.recv().unwrap().unwrap()
         };
-        Environment {
-            raw: environment
-        }
+        Environment { raw: environment }
     }
 }
 impl Webview {
-    pub fn new(hwnd_id: isize, environment: &Environment) -> Self {
-        let hwnd = HWND(hwnd_id as *mut libc::c_void);
-
+    pub fn new(hwnd: HWND, environment: &Environment) -> Self {
         let environment = environment.raw.clone();
         let c2 = {
             let (tx, rx) = mpsc::channel();
@@ -444,13 +449,13 @@ impl Webview {
                                 let hwnd = GetActiveWindow();
                                 SetFocus(Some(hwnd)).unwrap();
                                 args.SetHandled(true).unwrap();
-        //                             // Perform the enumeration
-        //                         let _ =   my_enumerate_children(hwnd);
-        // EnumChildWindows(
-        //     Some(hwnd),
-        //     Some(enumerate_callback),
-        //     LPARAM(0),
-        // ).unwrap()
+                                //                             // Perform the enumeration
+                                //                         let _ =   my_enumerate_children(hwnd);
+                                // EnumChildWindows(
+                                //     Some(hwnd),
+                                //     Some(enumerate_callback),
+                                //     LPARAM(0),
+                                // ).unwrap()
                             }
                             KeyboardAndMouse::VK_X => {
                                 let hwnd = GetActiveWindow();
@@ -495,8 +500,16 @@ impl Webview {
             let settings = webview.Settings().unwrap();
             settings.SetAreDefaultContextMenusEnabled(true).unwrap();
             settings.SetAreDevToolsEnabled(true).unwrap();
-            settings.cast::<ICoreWebView2Settings4>().unwrap().SetIsPasswordAutosaveEnabled(true).unwrap();
-            settings.cast::<ICoreWebView2Settings4>().unwrap().SetIsGeneralAutofillEnabled(true).unwrap();
+            settings
+                .cast::<ICoreWebView2Settings4>()
+                .unwrap()
+                .SetIsPasswordAutosaveEnabled(true)
+                .unwrap();
+            settings
+                .cast::<ICoreWebView2Settings4>()
+                .unwrap()
+                .SetIsGeneralAutofillEnabled(true)
+                .unwrap();
         }
 
         // unsafe {
@@ -574,11 +587,12 @@ impl Webview {
                     }
                     Ok(())
                 }),
-            ).unwrap();
+            )
+            .unwrap();
         }
         Webview {
             id: new_webview_id(),
-            hwnd: hwnd_id,
+            hwnd: hwnd,
             // bounds,
             raw: webview,
             controller,
@@ -618,9 +632,8 @@ impl Webview {
     }
     pub fn set_on_navigation_starting(&self, cb: Value) {
         let mut token = 0;
-        let hwnd_id = self.hwnd;
-
         let gcb = Rc::new(cb.make_global_ref());
+        let controller = self.controller.clone();
         let handler = NavigationStartingEventHandler::create(Box::new(move |iwebview, args| {
             let Some(_iwebview) = iwebview else {
                 return Ok(());
@@ -639,7 +652,7 @@ impl Webview {
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(hwnd_id);
+                notify_emacs_for_webview(&controller);
             }
             Ok(())
         }));
@@ -649,7 +662,7 @@ impl Webview {
         let mut token = 0;
 
         let gcb = Rc::new(cb.make_global_ref());
-        let hwnd_id = self.hwnd;
+        let controller = self.controller.clone();
         let handler = NewWindowRequestedEventHandler::create(Box::new(move |iwebview, args| {
             let Some(iwebview) = iwebview else {
                 return Ok(());
@@ -659,7 +672,7 @@ impl Webview {
             // let mut uri = windows::core::PWSTR::null();
             // args.Uri(&mut uri).unwrap();
             // webview.as_ref().unwrap().Navigate(uri).unwrap();
-            let iwebview2 = iwebview.clone();
+            let _iwebview2 = iwebview.clone();
             unsafe {
                 CALLBACKS.with(|events| {
                     let mut events = events.borrow_mut();
@@ -669,11 +682,13 @@ impl Webview {
                     let mut is_user_initiated = windows::core::BOOL::default();
                     args.IsUserInitiated(&mut is_user_initiated).unwrap();
                     println!("is_user_initiated = {:?}", is_user_initiated);
+                    let wind_features = args.WindowFeatures().unwrap();
 
                     let deferral: ICoreWebView2Deferral = args.GetDeferral().unwrap();
                     events.push(Callback {
                         rcb: Box::new(move |env: &Env, cb: Value| -> LispResult<()> {
-                            let value = env.call(cb, (uri,))?;
+                            let features = window_features_to_lisp(&env, &wind_features)?;
+                            let value = env.call(cb, (uri, features))?;
                             args.SetHandled(value.is_not_nil()).unwrap();
                             deferral.Complete().unwrap();
                             Ok(())
@@ -681,7 +696,7 @@ impl Webview {
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(hwnd_id);
+                notify_emacs_for_webview(&controller);
             }
 
             // args.SetNewWindow(webview.as_ref().unwrap()).unwrap();
@@ -693,54 +708,51 @@ impl Webview {
         // got focus
         let mut token = 0;
         let gcb = Rc::new(cb.make_global_ref());
-        let hwnd_id = self.hwnd;
         let handler = FocusChangedEventHandler::create(Box::new(move |icontroller, _args| {
             let Some(icontroller) = icontroller else {
                 return Ok(());
             };
             // let Some(args) = args else { return Ok(()) };
             unsafe {
-                let iwebview = icontroller.CoreWebView2().unwrap();
+                let _iwebview = icontroller.CoreWebView2().unwrap();
                 CALLBACKS.with(|events| {
                     let mut events = events.borrow_mut();
                     events.push(Callback {
-                        rcb: Box::new(move |env: &Env, cb: Value| -> LispResult<()>{
-                           env.call(cb, (true,)).map(|_|())
+                        rcb: Box::new(move |env: &Env, cb: Value| -> LispResult<()> {
+                            env.call(cb, (true,)).map(|_| ())
                         }),
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(hwnd_id);
+                notify_emacs_for_webview(&icontroller);
             }
             Ok(())
         }));
         (unsafe { self.controller.add_GotFocus(&handler, &mut token) }).unwrap();
-        // lost focus 
+        // lost focus
 
         let mut token = 0;
         let gcb = Rc::new(cb.make_global_ref());
-        let hwnd_id = self.hwnd;
         let handler = FocusChangedEventHandler::create(Box::new(move |icontroller, _args| {
             let Some(icontroller) = icontroller else {
                 return Ok(());
             };
             unsafe {
-                let iwebview = icontroller.CoreWebView2().unwrap();
+                let _iwebview = icontroller.CoreWebView2().unwrap();
                 CALLBACKS.with(|events| {
                     let mut events = events.borrow_mut();
                     events.push(Callback {
-                        rcb: Box::new(move |env: &Env, cb: Value| -> LispResult<()>{
-                           env.call(cb, (false,)).map(|_|())
+                        rcb: Box::new(move |env: &Env, cb: Value| -> LispResult<()> {
+                            env.call(cb, (false,)).map(|_| ())
                         }),
                         gcb: Rc::clone(&gcb),
                     });
                 });
-                notify_emacs_for_webview(hwnd_id);
+                notify_emacs_for_webview(&icontroller);
             }
             Ok(())
         }));
         (unsafe { self.controller.add_LostFocus(&handler, &mut token) }).unwrap();
-
     }
     pub fn update_position(&self) {
         unsafe {
@@ -828,7 +840,7 @@ impl Webview {
         unsafe { self.raw.Navigate(pwstr_from_str(url)).unwrap() }
         let wv = self.raw.clone();
         let gcb = cb.make_global_ref();
-        let hwnd_id = self.hwnd;
+        let controller = self.controller.clone();
         unsafe {
             wv.add_NavigationCompleted(
                 &NavigationCompletedEventHandler::create(Box::new(move |webview, _| {
@@ -847,7 +859,7 @@ impl Webview {
                             gcb.free(env).unwrap();
                         }));
                     });
-                    notify_emacs_for_webview(hwnd_id);
+                    notify_emacs_for_webview(&controller);
                     Ok(())
                 })),
                 &mut 0,
@@ -866,23 +878,30 @@ impl Webview {
             self.controller.Close().unwrap();
         }
     }
-    pub fn reparent(&mut self, hwnd_id: isize) {
-        let hwnd = HWND(hwnd_id as *mut libc::c_void);
+    pub fn reparent(&mut self, hwnd: HWND) {
+        // println!("reparent  from {:?} to {:?}", self.hwnd, hwnd);
+        if hwnd == self.hwnd {
+            return;
+        }
         unsafe {
             self.controller.SetParentWindow(hwnd).unwrap();
             self.controller.NotifyParentWindowPositionChanged().unwrap();
         }
-        self.hwnd = hwnd_id;
+        self.hwnd = hwnd;
     }
-    pub fn set_default_background_color(&mut self, a: u8, r: u8, g:u8, b: u8) {
+    pub fn set_default_background_color(&mut self, a: u8, r: u8, g: u8, b: u8) {
         let tcolor = COREWEBVIEW2_COLOR {
-            A: a, 
+            A: a,
             R: r,
-            G: g, 
-            B: b
+            G: g,
+            B: b,
         };
         unsafe {
-            self.controller.cast::<ICoreWebView2Controller2>().unwrap().SetDefaultBackgroundColor(tcolor).unwrap();
+            self.controller
+                .cast::<ICoreWebView2Controller2>()
+                .unwrap()
+                .SetDefaultBackgroundColor(tcolor)
+                .unwrap();
         }
     }
     pub fn eval_js_sync(&self, js: &str) {
@@ -905,11 +924,9 @@ impl Webview {
         let js = pwstr_from_str(js);
         let raw = self.raw.clone();
         let gcb = cb.make_global_ref();
-        println!("eval_js start");
+        // println!("eval_js start");
         let webview: ICoreWebView2_21 = raw.cast().unwrap();
-        let webview2 = webview.clone();
-
-        let hwnd_id = self.hwnd;
+        let controller = self.controller.clone();
         unsafe {
             webview
                 .ExecuteScriptWithResult(
@@ -919,7 +936,7 @@ impl Webview {
                         let mut rt = PWSTR::default();
                         b.ResultAsJson(&mut rt).unwrap();
                         let rt = rt.to_string().unwrap();
-                        println!("rt = {:?}", rt);
+                        println!("eval js rt = {:?}", rt);
                         EVENTS.with(|events| {
                             let events = &mut *events.borrow_mut();
                             events.push(Box::new(move |env: &Env| {
@@ -928,13 +945,13 @@ impl Webview {
                                 gcb.free(env).unwrap();
                             }));
                         });
-                        notify_emacs_for_webview(hwnd_id);
+                        notify_emacs_for_webview(&controller);
                         Ok(())
                     })),
                 )
                 .unwrap();
         }
-        println!("eval_js end");
+        // println!("eval_js end");
     }
     pub fn eval_js_cdp(&self, js: &str, _cb: Value) {
         let raw = self.raw.clone();

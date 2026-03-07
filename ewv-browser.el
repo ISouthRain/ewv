@@ -1,176 +1,140 @@
 ;; -*- lexical-binding: t; -*-
 
+(defgroup ewv-browser nil
+  "Browser based on ewv"
+  :link '(info-link :tag "Info Manual" "(ewv)")
+  :link '(url-link :tag "Website" "https://github.com/heartnheart/ewv")
+  :group 'tools
+  :prefix "ewv-browser")
+
 (require 'ewv-core)
 
-(cl-defstruct ewv-browser-webview
-  "webview2 instance wrapper"
-  id
-  frame
-  hwnd
-  bounds
-  url
-  html-string
-  buffer
-  )
 
-(defvar-local ewv-browser--local-webview nil)
-(defvar-local ewv-browser--on-navigation-starting nil)
-(defvar-local ewv-browser--registered nil)
+(defcustom eb/default-url
+  "https://www.baidu.com"
+  "ewv-browser-open-url 默认打开的 url")
 
-(defvar ewv-browser--environment nil)
+(defvar-local eb//local-id nil "底层 webview 对应的 id")
+(defvar-local eb//local-frame nil "底层 webview 所属 parent HWND 对应的 emacs frame")
+
+(defvar eb//all-buffers nil "所有 ewv-browser buffer")
+
+
+(defvar eb//environment nil "假设 ewv-browser 共享一个 webview environment")
 
 ;; TODO emacs-module-rs 目前不支持接受变长参数
-(defun ewv-native-environment-new (&rest args)
-  (ewv-native-environment-new1 args))
+(defun ent/environment-new (&rest args)
+  (ent/environment-new1 args))
 
-(defun ewv-browser-native-webview-new(&optional hwnd)
-  (unless ewv-browser--environment
-    (setq ewv-browser--environment
-          (ewv-native-environment-new :are-browser-extensions-enabled t )))
-  (ewv-native-webview-new (or hwnd (ewv-get-frame-hwnd)) ewv-browser--environment)
-  )
+(defun eb//ensure-environment()
+  (setq eb//environment (or eb//environment (ent/environment-new :are-browser-extensions-enabled t))))
 
-(defvar ewv-browser--active-count 0)
+(defun eb//webview-new(frame)
+  (eb//ensure-environment)
+  (ent/webview-new frame eb//environment))
 
-
-(defun ewv-browser-focus-webview ()
+(defun eb/focus-webpage ()
   (interactive)
-  (when ewv-browser--local-webview
-    (ewv-native-webview-focus (ewv-browser-webview-id ewv-browser--local-webview))
-    (message "focus webview")))
+  (when eb//local-id
+    (ent/webview-focus eb//local-id)
+    (message "Focus moved to webpage")))
 
-(defun ewv-browser-toggle-visibility ()
+(defun eb/toggle-visibility ()
   (interactive)
-  (when ewv-browser--local-webview
-    (let ((id (ewv-browser-webview-id ewv-browser--local-webview)))
-      (ewv-native-webview-set-visible id (not (ewv-native-webview-is-visible id)))
-      (message "toggle"))))
+  (ent/webview-set-visible eb//local-id
+                           (not (ent/webview-is-visible eb//local-id))))
 
-(defun ewv-browser-load-url (url)
-  (interactive "sNew Url: ")
-  (when ewv-browser--local-webview
-    (ewv-browser--load (ewv-browser-webview-id ewv-browser--local-webview) url (ewv-browser-webview-buffer ewv-browser--local-webview))))
+(defun eb/load-new-url (url)
+  (interactive "sEdit Url: ")
+  (eb//load eb//local-id url (current-buffer)))
 
-(defun ewv-browser-load-file (file)
+(defun eb/load-new-file (file)
   (interactive "fFile: ")
-  (when ewv-browser--local-webview
-    (ewv-browser--load (ewv-browser-webview-id ewv-browser--local-webview) file (ewv-browser-webview-buffer ewv-browser--local-webview))))
+  (eb//load eb//local-id file (current-buffer)))
 
-(defun ewv-browser-set-on-navigation-starting (callback)
-  (setq ewv-browser--on-navigation-starting callback))
 
-(defun ewv-browser--enable-global-hooks ()
-  (add-hook 'window-configuration-change-hook #'ewv-browser--monitor-window-configuration-change)
-  (add-hook 'delete-frame-functions #'ewv--delete-frame-function))
+(defun eb//enable-global-hooks ()
+  (add-hook 'window-configuration-change-hook #'eb//monitor-window-configuration-change)
+  (add-hook 'delete-frame-functions #'eb//delete-frame-function))
 
-(defun ewv-browser--disable-global-hooks ()
-  (remove-hook 'window-configuration-change-hook #'ewv-browser--monitor-window-configuration-change)
-  (remove-hook 'delete-frame-functions #'ewv--delete-frame-function))
+(defun eb//disable-global-hooks ()
+  (remove-hook 'window-configuration-change-hook #'eb//monitor-window-configuration-change)
+  (remove-hook 'delete-frame-functions #'eb//delete-frame-function))
 
-(defun ewv-browser--register-buffer ()
-  (unless ewv-browser--registered
-    (setq ewv-browser--registered t)
-    (cl-incf ewv-browser--active-count)
-    (when (= ewv-browser--active-count 1)
-      (ewv-browser--enable-global-hooks))))
+(defun eb//register-buffer (buffer)
+  (cl-pushnew buffer eb//all-buffers)
+  ;; (ec//print "register buffer len = %S" eb//all-buffers)
+  (when (= (length eb//all-buffers) 1)
+    (eb//enable-global-hooks)))
 
-(defun ewv-browser--buffer-exited ()
-  (when ewv-browser--registered
-    (setq ewv-browser--registered nil)
-    (cl-decf ewv-browser--active-count)
-    (when (<= ewv-browser--active-count 0)
-      (setq ewv-browser--active-count 0)
-      (ewv-browser--disable-global-hooks))))
+(defun eb//unregister-buffer ()
+  (ent/webview-close eb//local-id)
+  (setq eb//all-buffers (cl-remove (current-buffer) eb//all-buffers))
+  ;; (ec//print "unregister buffer len = %S" eb//all-buffers)
+  (when (<= (length eb//all-buffers) 0)
+    (eb//disable-global-hooks)
+    (setq eb//environment nil)
+    ))
 
-(defvar ewv-browser-mode-map
+(defvar eb/mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "i") #'ewv-browser-focus-webview)
-    (define-key map (kbd "t") #'ewv-browser-toggle-visibility)
-    (define-key map (kbd "e") #'ewv-browser-load-url)
-    (define-key map (kbd "f") #'ewv-browser-load-file)
+    (define-key map (kbd "i") #'eb/focus-webpage)
+    (define-key map (kbd "t") #'eb/toggle-visibility)
+    (define-key map (kbd "e") #'eb/load-new-url)
+    (define-key map (kbd "f") #'eb/load-new-file)
     map))
 
-(define-derived-mode ewv-browser-mode special-mode "EWV-Browser"
-  (use-local-map ewv-browser-mode-map)
-  (add-hook 'kill-buffer-hook #'ewv--buffer-kill-hook nil t)
-  (add-hook 'kill-buffer-hook #'ewv-browser--buffer-exited nil t)
-  (add-hook 'change-major-mode-hook #'ewv-browser--buffer-exited nil t)
-  (ewv-browser--register-buffer))
-(defun ewv-browser--monitor-window-configuration-change()
-  (save-excursion
-    (save-window-excursion
-      (dolist (wind (window-list))
-        ;; (window-old-buffer) 在 window-state-change-hook 中总是返回跟 new-buf 一样的值
-        (let ((old-buf (window-old-buffer wind))
-              (new-buf (window-buffer wind)))
-          (with-selected-window wind
-            ;; (when (and (bufferp old-buf) (buffer-live-p old-buf) (not (eq old-buf new-buf)))
-            ;;   (with-current-buffer old-buf
-            ;;     (when ewv-browser--local-webview
-            ;;       (ewv-native-webview-set-visible (ewv-browser-webview-id ewv-browser--local-webview) nil)
-            ;;       )))
-            (with-current-buffer new-buf
-              (when ewv-browser--local-webview
-                (let ((bounds (ewv--get-window-edges))
-                      (id (ewv-browser-webview-id ewv-browser--local-webview)))
-                  (unless (equal (ewv-browser-webview-hwnd ewv-browser--local-webview) (ewv-get-frame-hwnd))
-                    (ewv-native-webview-reparent id (ewv-get-frame-hwnd))
-                    (setf (ewv-browser-webview-hwnd ewv-browser--local-webview) (ewv-get-frame-hwnd))
-                    (setf (ewv-browser-webview-frame ewv-browser--local-webview) (selected-frame))
-                    )
-                  (setf (ewv-browser-webview-bounds ewv-browser--local-webview) bounds)
-                  (ewv-native-webview-resize id bounds)
-                  (ewv-native-webview-set-visible id t)
-                  )))))
-        )
+(define-derived-mode eb/mode special-mode "EWV-Browser"
+  (use-local-map eb/mode-map)
+  ;; window-configuration-change-hook 运行的时候 frame 已经删除了，此时再 reparent 会 panic
+  ;; TODO 这个 hook 也不保证一定在 frame 删除之前调用
+  (add-hook 'kill-buffer-hook #'eb//unregister-buffer nil t)
+  (add-hook 'change-major-mode-hook #'eb//unregister-buffer nil t)
+  (eb//register-buffer (current-buffer)))
 
-      (dolist (buf (buffer-list))
-        (with-current-buffer buf
-          (when (and ewv-browser--local-webview  (not (get-buffer-window buf t)))
-            (if (frame-live-p (ewv-browser-webview-frame ewv-browser--local-webview))
-                (ewv-native-webview-set-visible (ewv-browser-webview-id ewv-browser--local-webview) nil)
-              )
-            )
-          )
-        )
-      )))
+(defun eb//monitor-window-configuration-change()
+  (dolist (wind (window-list))
+    ;; NOTE (window-old-buffer) 在 window-state-change-hook 中总是返回跟 new-buf 一样的值, 所以只能用 window-configuration-change-hook
+    (with-current-buffer (window-buffer wind)
+      ;; (ec//print "monitor wind conf change in buffer %S" (current-buffer))
+      (when-let* ((bounds (ec//get-window-edges wind))
+                  (id eb//local-id)
+                  (frame (window-frame wind)))
+        (ent/webview-reparent id frame)
+        (setq-local eb//local-frame frame)
+        (ent/webview-resize id bounds)
+        (ent/webview-set-visible id t))))
 
-
-;; ;; window-configuration-change-hook not work for window deletion
-;; (define-advice delete-window (:before  (&optional window) ewv-before-delte-window)
-;;   (message "running delte -window")
-;;   (unless (and window (window-live-p window))
-;;     (with-current-buffer (window-buffer window)
-;;       (when ewv-browser--local-webview
-;;         (ewv-native-webview-set-visible (ewv-browser-webview-id ewv-browser--local-webview) nil)
-;;         ))))
-(defun ewv--delete-frame-function(frame)
-  (dolist (wind (window-list frame))
-    (let ((buf (window-buffer wind)))
-      (with-current-buffer buf
-        (when ewv-browser--local-webview
-          (let* ((new-frame (cl-find-if-not (lambda (f) (eq f frame)) (frame-list)))
-                 (new-hwnd (ewv-get-frame-hwnd new-frame)))
-            (ewv-native-init-for-frame new-hwnd)
-            (ewv-native-webview-reparent (ewv-browser-webview-id ewv-browser--local-webview) new-hwnd)
-            (ewv-native-webview-set-visible (ewv-browser-webview-id ewv-browser--local-webview) nil)
-            (setf (ewv-browser-webview-hwnd ewv-browser--local-webview) new-hwnd)
-            (setf (ewv-browser-webview-frame ewv-browser--local-webview) new-frame)
-            )
-          )
-        ))
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (and eb//local-id  (not (get-buffer-window buf t)))
+        (ent/webview-set-visible eb//local-id nil))
+      )
     )
   )
-;; window-configuration-change-hook 运行的时候 frame 已经删除了，此时再 reparent 会 panic
-;; TODO 这个 hook 也不保证一定在 frame 删除之前调用
-(defun ewv--buffer-kill-hook()
-  (when ewv-browser--local-webview
-    (let ((id (ewv-browser-webview-id ewv-browser--local-webview)))
-      (ewv-native-webview-close id)
-      )))
 
 
-(defun ewv--browser-normalize-url(url)
+;; NOTE window-configuration-change-hook NOT work for window deletion
+(defun eb//delete-frame-function(frame)
+  (ec//print "deleting frame %S" frame)
+
+  (when-let* ((safe-frame (car-safe (remove frame (frame-list)))))
+    (ec//print "safe-frame = %S" safe-frame)
+    (dolist (buf eb//all-buffers)
+      (with-current-buffer buf
+        (ec//print "buf %S frame %S eb//local-frame %S" buf frame eb//local-frame)
+        (ec//print "eq = %S" (eq frame eb//local-frame))
+        (when (eq frame eb//local-frame)
+          (ent/webview-reparent eb//local-id safe-frame)
+          (ent/webview-set-visible eb//local-id nil)
+          (setq-local eb//local-frame safe-frame)
+          (ec//print "reparent from %S to %S" frame safe-frame)
+          )
+        )
+      )
+    )
+  )
+(defun eb//normalize-url(url)
   (if (or (string-prefix-p "https://" url)
           (string-prefix-p "http://" url)
           (string-prefix-p "chrome://" url)
@@ -188,90 +152,89 @@
 
 ;;; browser: attached to buffer + occupy entire window
 
-(defun ewv-browser--load (ewv-id url buffer)
-  (ewv-native-webview-load ewv-id
-                           (ewv--browser-normalize-url url)
-                           (lambda (title url)
-                             (with-current-buffer buffer
-                               (rename-buffer (format "*ewv-buffer-%d-%s*" ewv-id title))
-                               )
-                             (switch-to-buffer buffer)
-                             ))
-  )
+(defun eb//load (id url buffer)
+  (ent/webview-load id
+                    (eb//normalize-url url)
+                    (lambda (title url)
+                      (with-current-buffer buffer
+                        (rename-buffer (format "*ewv-buffer-%d-%s*" id title)))
+                      (switch-to-buffer buffer))))
 
-(defun ewv-browser-open-url (url)
-  (interactive "sUrl[https://www.baidu.com]: ")
+(defun eb//on-new-window-requested(url features)
+  (ec//print "eb new-window-requrest url = %S" url)
+  (ec//print "                       features = %S" features)
+  (cond
+   ;; 有些 link 如百度新闻里的会要求访问 about:blank
+   ((string= url "about:blank") t)
+   ;; 可能是 popup
+   ((plist-get features :has-position) nil)
+   (t (eb/open-url url) t)
+   )
+  ;; ;; (ewv-native-webview-load ewv-id
+  ;; ;;                          (ewv--browser-normalize-url url) #'ignore)
+  )
+(defun eb//on-focus-change(focused buffer)
+  (when focused
+    (select-window (get-buffer-window buffer))
+    ))
+
+(defun eb/open-url (url)
+  "在当前 frame 新建一个 buffer 打开指定的 url。"
+  (interactive (list (read-string (format "URL [%s]: " eb/default-url))))
+
   (when (string-empty-p url)
-    (setq url "https://www.baidu.com"))
-  (setq url (ewv--browser-normalize-url url))
-  (let* ((hwnd (ewv-get-frame-hwnd))
-         (ewv-id (ewv-browser-native-webview-new hwnd))
-         (ewv-buffer-name (format "*ewv-buffer-%d*" ewv-id))
-         (ewv-buffer (get-buffer-create ewv-buffer-name))
-         (ewv-obj))
-    (setq ewv-obj (make-ewv-browser-webview :id ewv-id :buffer ewv-buffer :hwnd hwnd :frame (selected-frame)))
-    (ewv-native-webview-set-on-new-window-requested ewv-id (lambda (url)
-                                                             (ewv--print "debug url = %S" url)
-                                                             (ewv-browser-open-url url)
-                                                             ;; ;; (ewv-native-webview-load ewv-id
-                                                             ;; ;;                          (ewv--browser-normalize-url url) #'ignore)
-                                                             t
-                                                             )
-                                                    )
-    (ewv-native-webview-set-on-focus ewv-id (lambda (focus) (ewv--print "browser focus = %S" focus) (and focus (select-window (get-buffer-window ewv-buffer)))))
-    (ewv-native-webview-set-on-navigation-starting ewv-id
-                                                   (lambda (url)
-                                                     (with-current-buffer ewv-buffer
-                                                       (when ewv-browser--local-webview
-                                                         (let ((bounds (ewv--get-window-edges))
-                                                               (id (ewv-browser-webview-id ewv-browser--local-webview)))
-                                                           (unless (equal (ewv-browser-webview-hwnd ewv-browser--local-webview) (ewv-get-frame-hwnd))
-                                                             (ewv-native-webview-reparent id (ewv-get-frame-hwnd))
-                                                             (setf (ewv-browser-webview-hwnd ewv-browser--local-webview) (ewv-get-frame-hwnd))
-                                                             (setf (ewv-browser-webview-frame ewv-browser--local-webview) (selected-frame))
-                                                             )
-                                                           (setf (ewv-browser-webview-bounds ewv-browser--local-webview) bounds)
-                                                           (ewv-native-webview-resize id bounds)
-                                                           (ewv-native-webview-set-visible id t)
-                                                           ))
-                                                       (when ewv-browser--on-navigation-starting
-                                                         (funcall ewv-browser--on-navigation-starting url)))))
-    (with-current-buffer ewv-buffer
-      (ewv-browser-mode)
-      (setq ewv-browser--local-webview ewv-obj)
+    (setq url eb/default-url))
+  (setq url (eb//normalize-url url))
+
+  (let* ((frame (selected-frame))
+         (eb-id (eb//webview-new frame))
+         (eb-buffer-name (format "*ewv-browser-%d*" eb-id))
+         (eb-buffer (get-buffer-create eb-buffer-name))
+         )
+    (ent/webview-set-on-new-window-requested eb-id #'eb//on-new-window-requested)
+    (ent/webview-set-on-focus eb-id (lambda (focused) (eb//on-focus-change focused eb-buffer)))
+    (with-current-buffer eb-buffer
+      (eb/mode)
+      (setq-local eb//local-id eb-id)
+      (setq-local eb//local-frame frame)
+      (eb//load eb//local-id url eb-buffer)
       )
-                                        ; (ewv--extension-load ewv-id)
-    ;; (ewv-native-webview-add-extension ewv-id "C:/Users/xlzhang/AppData/Local/Microsoft/Edge SxS/User Data/Profile 2/Extensions/dmaldhchmoafliphkijbfhaomcgglmgd/3.4.5_0")
-    ;; (ewv-native-webview-add-extension ewv-id "C:/Users/xlzhang/AppData/Local/Microsoft/Edge Beta/User Data/Default/Extensions/kgnghhfkloifoabeaobjkgagcecbnppg/1.17.12_1")
-    (ewv-browser--load ewv-id url ewv-buffer)
     )
   )
-(defun ewv-browser-open-file (file)
+(defun eb/open-file (file)
   (interactive "fFile: ")
-  (ewv-browser-open-url (ewv--browser-normalize-url file))
-  )
+  (eb/open-url (eb//normalize-url file)))
 
-(defvar ewv-browser-extension--wvid nil)
-(define-key-after global-map [tool-bar seperator-4]
-  menu-bar-separator)
+;; (defvar ewv-browser-extension--wvid nil)
+;; (define-key-after global-map [tool-bar seperator-4]
+;;   menu-bar-separator)
 ;; (set-frame-parameter nil 'tool-bar-lines 10)
 
-(defvar ewv-browser-address-bar-file
-  (expand-file-name "address-bar.html" (file-name-directory (or load-file-name (buffer-file-name)))))
+;; (defvar ewv-browser-address-bar-file
+;;   (expand-file-name "address-bar.html" (file-name-directory (or load-file-name (buffer-file-name)))))
 
-(unless ewv-browser-extension--wvid
-  (setq ewv-browser-extension--wvid (ewv-browser-native-webview-new))
-  (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)) )
+;; (unless ewv-browser-extension--wvid
+;;   (setq ewv-browser-extension--wvid (ewv-browser-native-webview-new))
+;;   (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)) )
 
-  (ewv-native-webview-load-sync ewv-browser-extension--wvid ewv-browser-address-bar-file)
-  (ewv-native-webview-set-visible ewv-browser-extension--wvid t)
-  ;; (ewv-native-webview-set-on-focus ewv-browser-extension--wvid
-  ;;                                  (lambda (focus) (ewv--print "focus = %S" focus) (unless focus (ewv-native-webview-set-visible ewv-browser-extension--wvid nil))))
-  )
-(defun ewv-browser--monitor-address-bar()
-  (ewv-native-webview-set-visible ewv-browser-extension--wvid (bound-and-true-p ewv-browser--local-webview))
-  (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)))
-  )
-(add-hook 'window-state-change-hook #'ewv-browser--monitor-address-bar)
+;;   (ewv-native-webview-load-sync ewv-browser-extension--wvid ewv-browser-address-bar-file)
+;;   (ewv-native-webview-set-visible ewv-browser-extension--wvid t)
+;;   ;; (ewv-native-webview-set-on-focus ewv-browser-extension--wvid
+;;   ;;                                  (lambda (focus) (ewv--print "focus = %S" focus) (unless focus (ewv-native-webview-set-visible ewv-browser-extension--wvid nil))))
+;;   )
+;; (defun ewv-browser--monitor-address-bar()
+;;   (ewv-native-webview-set-visible ewv-browser-extension--wvid (bound-and-true-p ewv-browser--local-webview))
+;;   (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)))
+;;   )
+;; (add-hook 'window-state-change-hook #'ewv-browser--monitor-address-bar)
 
 (provide 'ewv-browser)
+
+;; Local Variables:
+;; read-symbol-shorthands: (("eb/" . "ewv-browser-")
+;;                          ("eb//" . "ewv-browser--")
+;;                          ("ent/" . "ewv-native-")
+;;                          ("ec//" . "ewv-core--")
+;;                          )
+;; coding: utf-8-unix
+;; End:

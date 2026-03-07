@@ -59,7 +59,8 @@ fn native_environment_new1(env: &Env, options: emacs::Value) -> LispResult<Envir
 }
 
 #[defun]
-fn native_webview_new(hwnd: isize, wenv: &Environment) -> LispResult<i64> {
+fn native_webview_new(frame: emacs::Value, wenv: &Environment) -> LispResult<i64> {
+    let hwnd = get_frame_hwnd(frame)?;
     // let bounds = rect_from_lisp(bounds)?;
     WEBVIEWS.with(|webviews| {
         let mut webviews = webviews.borrow_mut();
@@ -70,9 +71,10 @@ fn native_webview_new(hwnd: isize, wenv: &Environment) -> LispResult<i64> {
     })
 }
 #[defun]
-fn native_webview_reparent(wv_id: i64, hwnd: isize) -> LispResult<()> {
+fn native_webview_reparent(wv_id: i64, frame: emacs::Value) -> LispResult<()> {
+    let hwnd = get_frame_hwnd(frame)?;
     with_webview(wv_id, |webview| {
-       Ok(webview.reparent(hwnd))
+        Ok(webview.reparent(hwnd))
     })
 }
 #[defun]
@@ -171,23 +173,7 @@ fn native_webview_open_task_manager(_env: &Env) -> LispResult<()> {
     });
     Ok(())
 }
-#[defun]
-fn native_webview_process_events(env: &Env) -> LispResult<()> {
-    EVENTS.with(|events| {
-        let events = &mut *events.borrow_mut();
-        while let Some(cb) = events.pop() {
-            cb(env);
-        }
-    });
-    CALLBACKS.with(|events| -> LispResult<()> {
-        let events = &mut *events.borrow_mut();
-        while let Some(Callback{rcb,  gcb, ..}) = events.pop() {
-            rcb(env, gcb.bind(env))?
-        }
-        Ok(())
-    })?;
-    Ok(())
-}
+
 #[defun]
 fn native_webview_add_extension(_env: &Env, wv_id: i64, ext_path: String) -> LispResult<()> {
     with_webview(wv_id, |webview| {
@@ -213,18 +199,83 @@ fn native_init_frame_thread_hook(env: &Env) -> LispResult<()> {
     setup_frame_thread_hook(hwnd);
     Ok(())
 }
-
-fn eval_elisp<'a>(env: &'a Env, expr: &str) -> LispResult<Value<'a>> {
-    let sexp = env.call("read", (expr,))?;
-    env.call("eval", (sexp,))
-}
+// fn eval_elisp<'a>(env: &'a Env, expr: &str) -> LispResult<Value<'a>> {
+//     let sexp = env.call("read", (expr,))?;
+//     env.call("eval", (sexp,))
+// }
 fn get_frame_hwnd(frame: emacs::Value)-> LispResult<HWND> {
     let env = frame.env;
     let hwnd_id: isize = env.call("frame-parameter", (frame, env.intern("window-id")?))?.into_rust::<String>()?.parse()?;
     Ok(HWND(hwnd_id as *mut libc::c_void))
 }
 
+#[defun]
+fn native_process_events(env: &Env) -> LispResult<()> {
+    EVENTS.with(|events| {
+        let events = &mut *events.borrow_mut();
+        while let Some(cb) = events.pop() {
+            cb(env);
+        }
+    });
+    CALLBACKS.with(|events| -> LispResult<()> {
+        let events = &mut *events.borrow_mut();
+        while let Some(Callback{rcb,  gcb, ..}) = events.pop() {
+            rcb(env, gcb.bind(env))?
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+#[allow(unused_variables)]
+fn window_features_to_lisp<'a>(env: &'a Env, features: &ICoreWebView2WindowFeatures) -> LispResult<emacs::Value<'a>>{
+    unsafe {
+        let has_position = {
+            let mut rt = windows::core::BOOL::default();
+            features.HasPosition(&mut rt).unwrap();
+            println!("HasPosition = {rt:?}");
+            rt.as_bool()
+        };
+        let has_size = {
+            let mut rt = windows::core::BOOL::default();
+            features.HasSize(&mut rt).unwrap();
+            println!("HasSize = {rt:?}");
+            rt.as_bool()
+        };
 
+        let should_display_menu_bar = {
+            let mut rt = windows::core::BOOL::default();
+            features.ShouldDisplayMenuBar(&mut rt).unwrap();
+            println!("ShouldDisplayMenuBar = {rt:?}");
+            rt.as_bool()
+        };
+        let should_display_status = {
+            let mut rt = windows::core::BOOL::default();
+            features.ShouldDisplayStatus(&mut rt).unwrap();
+            println!("ShouldDisplayStatus = {rt:?}");
+            rt.as_bool()
+        };
+        let should_display_toolbar = {
+            let mut rt = windows::core::BOOL::default();
+            features.ShouldDisplayToolbar(&mut rt).unwrap();
+            println!("ShouldDisplayToolbar = {rt:?}");
+            rt.as_bool()
+        };
+        let should_display_scroll_bars = {
+            let mut rt = windows::core::BOOL::default();
+            features.ShouldDisplayScrollBars(&mut rt).unwrap();
+            println!("ShouldDisplayScrollBars = {rt:?}");
+            rt.as_bool()
+        };
+        env.list((
+            env.intern(":has-position")?, has_position,
+            env.intern(":has-size")?, has_size,
+            env.intern(":should-display-menu-bar")?, should_display_menu_bar,
+            env.intern(":should-display-status")?, should_display_status,
+            env.intern(":should-display-scroll-bars")?, should_display_scroll_bars,
+        ))
+    }
+
+}
 
 // Register the initialization hook that Emacs will call when it loads the module.
 #[emacs::module(name="ewv")]
