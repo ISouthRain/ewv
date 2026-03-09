@@ -236,7 +236,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
     (kill-buffer buf)))
 
 (defun eb//get-user-data-dir()
-  (or eb/user-data-folder
+  (or (and eb/user-data-folder (expand-file-name "EBWebView"  eb/user-data-folder))
       (expand-file-name "emacs.exe.WebView2\\EBWebView" invocation-directory)))
 
 (defun eb/edit-user-data-with-msedge()
