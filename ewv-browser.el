@@ -13,6 +13,21 @@
 (defcustom eb/default-url
   "https://www.baidu.com"
   "ewv-browser-open-url 默认打开的 url")
+(defcustom eb/browser-executable-folder nil
+  "传递给 CreateCoreWebView2EnvironmentWithOptions 的参数。
+See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl?view=webview2-1.0.3800.47#createcorewebview2environmentwithoptions")
+
+(defcustom eb/user-data-folder nil
+  "传递给 CreateCoreWebView2EnvironmentWithOptions 的参数。
+See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl?view=webview2-1.0.3800.47#createcorewebview2environmentwithoptions")
+
+(defcustom eb/are-browser-extensions-enabled t
+  "传递给 CreateCoreWebView2EnvironmentWithOptions 的参数。
+See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl?view=webview2-1.0.3800.47#createcorewebview2environmentwithoptions")
+
+;; 即使是 64 位 msedge.exe 也会安装到 Program Files (x86)
+(defcustom eb/msedge-path "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+  "使用 msedge 来编辑 ewv-browser 的 user data folder。注意 msedge 的版本需要跟 webview2 runtime 的版本匹配。")
 
 (defvar-local eb//local-id nil "底层 webview 对应的 id")
 (defvar-local eb//local-frame nil "底层 webview 所属 parent HWND 对应的 emacs frame")
@@ -22,12 +37,17 @@
 
 (defvar eb//environment nil "假设 ewv-browser 共享一个 webview environment")
 
+
 ;; TODO emacs-module-rs 目前不支持接受变长参数
 (defun ent/environment-new (&rest args)
   (ent/environment-new1 args))
 
 (defun eb//ensure-environment()
-  (setq eb//environment (or eb//environment (ent/environment-new :are-browser-extensions-enabled t))))
+  (setq eb//environment (or eb//environment (ent/environment-new
+                                             :browser-executable-folder eb/browser-executable-folder
+                                             :user-data-folder eb/user-data-folder
+                                             :are-browser-extensions-enabled eb/are-browser-extensions-enabled
+                                             ))))
 
 (defun eb//webview-new(frame)
   (eb//ensure-environment)
@@ -181,10 +201,14 @@
 (defun eb/open-url (url)
   "在当前 frame 新建一个 buffer 打开指定的 url。"
   (interactive (list (read-string (format "URL [%s]: " eb/default-url))))
-
+  (when (and (file-exists-p (expand-file-name "lockfile" (eb//get-user-data-dir)))
+             (length= eb//all-buffers 0)
+             )
+    (user-error "User Data Dir %s is locked" (eb//get-user-data-dir)))
   (when (string-empty-p url)
     (setq url eb/default-url))
   (setq url (eb//normalize-url url))
+
 
   (let* ((frame (selected-frame))
          (eb-id (eb//webview-new frame))
@@ -204,6 +228,30 @@
 (defun eb/open-file (file)
   (interactive "fFile: ")
   (eb/open-url (eb//normalize-url file)))
+
+(defun eb/kill-all()
+  "关闭 ewv-browser 所有 buffer"
+  (interactive)
+  (dolist (buf eb//all-buffers)
+    (kill-buffer buf)))
+
+(defun eb//get-user-data-dir()
+  (or eb/user-data-folder
+      (expand-file-name "emacs.exe.WebView2\\EBWebView" invocation-directory)))
+
+(defun eb/edit-user-data-with-msedge()
+  (interactive)
+  (when (file-executable-p eb/msedge-path)
+    (eb/kill-all)
+    (let ((user-data-dir (eb//get-user-data-dir)))
+      ;; webview2 退出之后还需要一段时间才会完整退出
+      (while (file-exists-p (expand-file-name "lockfile" user-data-dir))
+        (sit-for 0.5)
+        )
+      (start-process "*MSEdge*" nil eb/msedge-path (format "--user-data-dir=%s" user-data-dir))
+      )
+    )
+  )
 
 ;; (defvar ewv-browser-extension--wvid nil)
 ;; (define-key-after global-map [tool-bar seperator-4]
