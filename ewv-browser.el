@@ -132,7 +132,17 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
       )
     )
   )
+;; (defalias 'eb//monitor-window-configuration-change
+;;   (timeout-debounced-func #'eb//monitor-window-configuration-change 0))
 
+(defvar eb//monitor-window-configuration-change-timer nil)
+(defun eb//monitor-window-configuration-change()
+  (when eb//monitor-window-configuration-change-timer 
+    ;; cancel 一个已经执行过的好像也没错
+    (cancel-timer eb//monitor-window-configuration-change-timer))
+  (setq eb//monitor-window-configuration-change-timer
+          (run-with-idle-timer 0 nil #'eb//monitor-window-configuration-change1))
+)
 
 ;; NOTE window-configuration-change-hook NOT work for window deletion
 (defun eb//delete-frame-function(frame)
