@@ -93,22 +93,6 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
     (eb//disable-global-hooks)
     (setq eb//environment nil)))
 
-(defvar eb/mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "i") #'eb/focus-webpage)
-    (define-key map (kbd "t") #'eb/toggle-visibility)
-    (define-key map (kbd "e") #'eb/load-new-url)
-    (define-key map (kbd "f") #'eb/load-new-file)
-    map))
-
-(define-derived-mode eb/mode special-mode "EWV-Browser"
-  (use-local-map eb/mode-map)
-  ;; window-configuration-change-hook 运行的时候 frame 已经删除了，此时再 reparent 会 panic
-  ;; TODO 这个 hook 也不保证一定在 frame 删除之前调用
-  (add-hook 'kill-buffer-hook #'eb//unregister-buffer nil t)
-  (add-hook 'change-major-mode-hook #'eb//unregister-buffer nil t)
-  (eb//register-buffer (current-buffer)))
-
 (defun eb//monitor-window-configuration-change1()
   (dolist (wind (window-list))
     ;; NOTE (window-old-buffer) 在 window-state-change-hook 中总是返回跟 new-buf 一样的值, 所以只能用 window-configuration-change-hook
@@ -160,15 +144,16 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
         (concat "file://" (expand-file-name url))
       (concat "https://" url))))
 
+(defun eb//format-title(id title)
+  (format "*ewv-buffer-%d-%s*" id title))
+
 (defun eb//load (id url buffer)
-  ;; native 层 id 只能递增，使用 tab-id 动态展示当前 tab 数量
-  (let ((eb-tab-id (length eb//all-buffers)))
-    (ent/webview-load id
-                      (eb//normalize-url url)
-                      (lambda (title url)
-                        (with-current-buffer buffer
-                          (rename-buffer (format "*ewv-buffer-%d-%s*" eb-tab-id title)))
-                        (switch-to-buffer buffer)))))
+  (ent/webview-load id
+                    (eb//normalize-url url)
+                    (lambda (title url)
+                      (with-current-buffer buffer
+                        (rename-buffer (eb//format-title id title)))
+                      (switch-to-buffer buffer))))
 
 (defun eb//on-new-window-requested(url features)
   (ec//print "eb new-window-requrest url = %S" url)
@@ -201,6 +186,8 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
          (eb-buffer (get-buffer-create eb-buffer-name)))
 
     (ent/webview-set-on-new-window-requested eb-id #'eb//on-new-window-requested)
+    ;; update tab-bar
+    (ent/webview-set-on-history-changed eb-id #'(lambda () (with-current-buffer eb-buffer (force-mode-line-update) (rename-buffer (eb//format-title eb//local-id (ent/webview-get-document-title eb//local-id))))))
     (ent/webview-set-on-focus eb-id (lambda (focused) (eb//on-focus-change focused eb-buffer)))
     (with-current-buffer eb-buffer
       (eb/mode)
@@ -239,11 +226,76 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
                       eb//session-urls
                       )
        (lambda (proc event)
+         ;; edge 退出之后还需要一段时间才会完整退出
+         (while (file-exists-p (expand-file-name "lockfile" user-data-dir))
+           (sit-for 0.5))
          (dolist (url eb//session-urls)
            (eb/open-url url))
          )
        ))))
 
+(defvar eb/tool-bar-map
+  (let ((tool-bar-map (make-sparse-keymap)))
+    ;; Add specific items to this new map
+    tool-bar-map)
+  "Custom tool bar map for Lisp mode.")
+
+
+
+(defun eb/go-forward()
+  (interactive)
+  (ent/webview-go-forward eb//local-id))
+
+(defun eb/go-back()
+  (interactive)
+  (ent/webview-go-back eb//local-id))
+
+
+(defun eb//can-go-forward()
+  (ent/webview-can-go-forward eb//local-id))
+
+(defun eb//can-go-back()
+  (ent/webview-can-go-back eb//local-id))
+
+(tool-bar-local-item "left-arrow" 'eb/go-back 'eb/go-back eb/tool-bar-map :enable '(eval (eb//can-go-back)))
+
+(tool-bar-local-item "right-arrow" 'eb/go-forward 'eb/go-forward eb/tool-bar-map :enable '(eval (eb//can-go-forward)))
+
+(define-key-after eb/tool-bar-map [eb/edit-user-data-with-msedge-local]
+  `(menu-item "Open url" eb//open-default-url
+              :image (image :type svg :file ,(expand-file-name "ewv.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.9)
+              :help "Open default url in in buffer"))
+
+(define-key-after eb/tool-bar-map [eb/edit-user-data-with-msedge]
+  `(menu-item "Open in Edge" eb/edit-user-data-with-msedge
+              :image (image :type svg :file ,(expand-file-name "msedge.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.7)
+              :help "Open all webpages in Edge"))
+
+(defvar eb/mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "i") #'eb/focus-webpage)
+    (define-key map (kbd "t") #'eb/toggle-visibility)
+    (define-key map (kbd "e") #'eb/load-new-url)
+    (define-key map (kbd "f") #'eb/load-new-file)
+    map))
+
+(define-derived-mode eb/mode special-mode "EWV-Browser"
+  (use-local-map eb/mode-map)
+  ;; window-configuration-change-hook 运行的时候 frame 已经删除了，此时再 reparent 会 panic
+  ;; TODO 这个 hook 也不保证一定在 frame 删除之前调用
+  (add-hook 'kill-buffer-hook #'eb//unregister-buffer nil t)
+  (add-hook 'change-major-mode-hook #'eb//unregister-buffer nil t)
+  (setq-local tool-bar-map eb/tool-bar-map)
+  (eb//register-buffer (current-buffer)))
+
+(defun eb//open-default-url ()
+  (interactive)
+  (eb/open-url eb/default-url))
+
+(define-key-after global-map [tool-bar eb/open-default-url]
+  `(menu-item "Open url" eb//open-default-url
+              :image (image :type svg :file ,(expand-file-name "ewv.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.9)
+              :help "Open default url in in buffer"))
 
 
 (provide 'ewv-browser)

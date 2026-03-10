@@ -658,6 +658,36 @@ impl Webview {
         }));
         (unsafe { self.raw.add_NavigationStarting(&handler, &mut token) }).unwrap();
     }
+
+     pub fn set_on_history_changed(&self, cb: Value) {
+        let mut token = 0;
+        let gcb = Rc::new(cb.make_global_ref());
+        let controller = self.controller.clone();
+        let handler = HistoryChangedEventHandler::create(Box::new(move |iwebview, _args| {
+            let Some(_iwebview) = iwebview else {
+                return Ok(());
+            };
+            CALLBACKS.with(|events| {
+                let mut events: unchecked_refcell::UncheckedRefMut<'_, Vec<Callback>> = events.borrow_mut();
+                events.push(Callback {
+                    rcb: Box::new(move |env: &Env, cb: Value| -> LispResult<()> {
+                        env.call(cb, []).map(|_| ())
+                    }),
+                    gcb: Rc::clone(&gcb),
+                });
+            });
+            notify_emacs_for_webview(&controller);
+            Ok(())
+        }));
+        (unsafe { self.raw.add_HistoryChanged(&handler, &mut token) }).unwrap();
+    }
+    pub fn get_document_title(&self) -> String {
+        unsafe {
+            let mut title = PWSTR::default();
+            self.raw.DocumentTitle(&mut title).unwrap();
+            title.to_string().unwrap()
+        } 
+    }
     pub fn set_on_new_window_requested(&self, cb: Value) {
         let mut token = 0;
 
@@ -831,6 +861,32 @@ impl Webview {
         }
         visible.into()
     }
+    pub fn go_forward(&self) {
+        unsafe {
+            self.raw.GoForward().unwrap()
+        }
+    }
+    pub fn go_back(&self) {
+        unsafe {
+            self.raw.GoBack().unwrap()
+        }
+    }
+    pub fn can_go_forward(&self)-> bool {
+        let mut rt = windows::core::BOOL::default();
+        unsafe {
+            self.raw.CanGoForward(&mut rt).unwrap();
+        }
+        rt.as_bool() 
+    }
+    pub fn can_go_back(&self)-> bool {
+        let mut rt = windows::core::BOOL::default();
+        unsafe {
+            self.raw.CanGoBack(&mut rt).unwrap();
+        }
+        rt.as_bool() 
+    }
+
+
     pub fn load_sync(&self, url: &str) {
         unsafe { self.raw.Navigate(pwstr_from_str(url)).unwrap() }
         let wv = self.raw.clone();

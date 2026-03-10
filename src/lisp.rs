@@ -115,6 +115,12 @@ fn native_webview_set_on_navigation_starting(_env: &Env, wv_id: i64, cb: Value) 
     })
 }
 #[defun]
+fn native_webview_set_on_history_changed(_env: &Env, wv_id: i64, cb: Value) -> LispResult<()> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.set_on_history_changed(cb))
+    })
+}
+#[defun]
 fn native_webview_load(_env: &Env, wv_id: i64, url: String, cb: Value) -> LispResult<()> {
     with_webview(wv_id, |webview| {
         Ok(webview.load(&url, cb))
@@ -131,6 +137,12 @@ fn native_webview_is_visible(wv_id: i64) -> LispResult<bool> {
     with_webview(wv_id, |webview| {
         Ok(webview.visible())
     })
+}
+#[defun]
+fn native_webview_get_document_title(wv_id: i64)-> LispResult<String> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.get_document_title())
+    }) 
 }
 #[defun]
 fn native_webview_set_default_background_color(wv_id: i64, a: u8, r: u8, g:u8, b:u8)-> LispResult<()> {
@@ -186,6 +198,30 @@ fn native_webview_add_extension(_env: &Env, wv_id: i64, ext_path: String) -> Lis
     with_webview(wv_id, |webview| {
         Ok(webview.add_extension(ext_path))
     })
+}
+#[defun]
+fn native_webview_go_forward(wv_id: i64) -> LispResult<()> {
+      with_webview(wv_id, |webview| {
+        Ok(webview.go_forward())
+    }) 
+}
+#[defun]
+fn native_webview_go_back(wv_id: i64) -> LispResult<()> {
+      with_webview(wv_id, |webview| {
+        Ok(webview.go_back())
+    }) 
+}
+#[defun]
+fn native_webview_can_go_forward(wv_id: i64) -> LispResult<bool> {
+      with_webview(wv_id, |webview| {
+        Ok(webview.can_go_forward())
+    }) 
+}
+#[defun]
+fn native_webview_can_go_back(wv_id: i64) -> LispResult<bool> {
+      with_webview(wv_id, |webview| {
+        Ok(webview.can_go_back())
+    }) 
 }
 
 
