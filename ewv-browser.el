@@ -263,28 +263,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
     )
   )
 
-;; (defvar ewv-browser-extension--wvid nil)
-;; (define-key-after global-map [tool-bar seperator-4]
-;;   menu-bar-separator)
-;; (set-frame-parameter nil 'tool-bar-lines 10)
 
-;; (defvar ewv-browser-address-bar-file
-;;   (expand-file-name "address-bar.html" (file-name-directory (or load-file-name (buffer-file-name)))))
-
-;; (unless ewv-browser-extension--wvid
-;;   (setq ewv-browser-extension--wvid (ewv-browser-native-webview-new))
-;;   (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)) )
-
-;;   (ewv-native-webview-load-sync ewv-browser-extension--wvid ewv-browser-address-bar-file)
-;;   (ewv-native-webview-set-visible ewv-browser-extension--wvid t)
-;;   ;; (ewv-native-webview-set-on-focus ewv-browser-extension--wvid
-;;   ;;                                  (lambda (focus) (ewv--print "focus = %S" focus) (unless focus (ewv-native-webview-set-visible ewv-browser-extension--wvid nil))))
-;;   )
-;; (defun ewv-browser--monitor-address-bar()
-;;   (ewv-native-webview-set-visible ewv-browser-extension--wvid (bound-and-true-p ewv-browser--local-webview))
-;;   (ewv-native-webview-resize ewv-browser-extension--wvid (list 0 0 (frame-inner-width) (tool-bar-height nil t)))
-;;   )
-;; (add-hook 'window-state-change-hook #'ewv-browser--monitor-address-bar)
 
 (provide 'ewv-browser)
 
