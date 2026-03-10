@@ -139,6 +139,13 @@ fn native_webview_set_default_background_color(wv_id: i64, a: u8, r: u8, g:u8, b
     })
 }
 #[defun]
+fn native_webview_get_url(wv_id: i64) -> LispResult<String> {
+    with_webview(wv_id, |webview| {
+        Ok(webview.get_url())
+    })
+}
+
+#[defun]
 fn native_webview_eval_js_sync<'a>(wv_id: i64, js: String) -> LispResult<()> {
     with_webview(wv_id, |webview| {
         Ok(webview.eval_js_sync(&js))

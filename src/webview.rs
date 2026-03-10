@@ -766,6 +766,13 @@ impl Webview {
                 .unwrap();
         }
     }
+    pub fn get_url(&self) -> String{
+        unsafe {
+            let mut url = PWSTR::default();
+            self.raw.Source(&mut url).unwrap();
+            url.to_string().unwrap()
+        }
+    }
     pub fn update_mouse(&self, _msg: &MSG) {
         // let (x, y) = get_mouse_x_y(msg.lParam);
         // if x < self.x || x >= self.x + self.w || y < self.y || y >= self.y + self.h {

@@ -32,6 +32,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
 (defvar-local eb//local-frame nil "底层 webview 所属 parent HWND 对应的 emacs frame")
 
 (defvar eb//all-buffers nil "所有 ewv-browser buffer")
+(defvar eb//session-urls nil "记录当前 session ewv-browser buffer")
 
 (defvar eb//environment nil "假设 ewv-browser 共享一个 webview environment")
 
@@ -108,7 +109,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   (add-hook 'change-major-mode-hook #'eb//unregister-buffer nil t)
   (eb//register-buffer (current-buffer)))
 
-(defun eb//monitor-window-configuration-change()
+(defun eb//monitor-window-configuration-change1()
   (dolist (wind (window-list))
     ;; NOTE (window-old-buffer) 在 window-state-change-hook 中总是返回跟 new-buf 一样的值, 所以只能用 window-configuration-change-hook
     (with-current-buffer (window-buffer wind)
@@ -222,12 +223,24 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
 (defun eb/edit-user-data-with-msedge()
   (interactive)
   (when (file-executable-p eb/msedge-path)
+    (setq eb//session-urls (mapcar (lambda (buf) (ent/webview-get-url (buffer-local-value 'eb//local-id buf)))
+                                   eb//all-buffers))
     (eb/kill-all)
     (let ((user-data-dir (eb//get-user-data-dir)))
       ;; webview2 退出之后还需要一段时间才会完整退出
       (while (file-exists-p (expand-file-name "lockfile" user-data-dir))
         (sit-for 0.5))
-      (start-process "*MsEdge*" nil eb/msedge-path (format "--user-data-dir=%s" user-data-dir)))))
+      (set-process-sentinel
+       (apply #'start-process "*MsEdge*" nil eb/msedge-path
+                      (format "--user-data-dir=%s" user-data-dir)
+                      ;; (car-safe eb//session-urls)
+                      eb//session-urls
+                      )
+       (lambda (proc event)
+         (dolist (url eb//session-urls)
+           (eb/open-url url))
+         )
+       ))))
 
 
 
