@@ -161,12 +161,14 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
       (concat "https://" url))))
 
 (defun eb//load (id url buffer)
-  (ent/webview-load id
-                    (eb//normalize-url url)
-                    (lambda (title url)
-                      (with-current-buffer buffer
-                        (rename-buffer (format "*ewv-buffer-%d-%s*" id title)))
-                      (switch-to-buffer buffer))))
+  ;; native 层 id 只能递增，使用 tab-id 动态展示当前 tab 数量
+  (let ((eb-tab-id (length eb//all-buffers)))
+    (ent/webview-load id
+                      (eb//normalize-url url)
+                      (lambda (title url)
+                        (with-current-buffer buffer
+                          (rename-buffer (format "*ewv-buffer-%d-%s*" eb-tab-id title)))
+                        (switch-to-buffer buffer)))))
 
 (defun eb//on-new-window-requested(url features)
   (ec//print "eb new-window-requrest url = %S" url)
