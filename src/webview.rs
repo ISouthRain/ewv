@@ -328,6 +328,10 @@ impl Environment {
         are_browser_extensions_enabled: bool,
     ) -> Self {
         let environment = {
+            // TOD「方案选单」O 有时候会报错未初始化，尚不知原因
+            unsafe {
+                let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).unwrap();
+            }
             let (tx, rx) = mpsc::channel();
             CreateCoreWebView2EnvironmentCompletedHandler::wait_for_async_operation(
                 Box::new(move |environmentcreatedhandler| unsafe {

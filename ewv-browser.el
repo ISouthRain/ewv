@@ -24,15 +24,43 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   "传递给 CreateCoreWebView2EnvironmentWithOptions 的参数。
 See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl?view=webview2-1.0.3800.47#createcorewebview2environmentwithoptions")
 
-;; 即使是 64 位 msedge.exe 也会安装到 Program Files (x86)
-(defcustom eb/msedge-path "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
-  "使用 msedge 来编辑 ewv-browser 的 user data folder。注意 msedge 的版本需要跟 webview2 runtime 的版本匹配。")
+;; 即使是 64 位 edge.exe 也会安装到 Program Files (x86)
+(defcustom eb/edge-path "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+  "使用 edge 来编辑 ewv-browser 的 user data folder。注意 edge 的版本需要跟 webview2 runtime 的版本匹配。")
 
 (defvar-local eb//local-id nil "底层 webview 对应的 id")
 (defvar-local eb//local-frame nil "底层 webview 所属 parent HWND 对应的 emacs frame")
 
 (defvar eb//all-buffers nil "所有 ewv-browser buffer")
 (defvar eb//session-urls nil "记录当前 session ewv-browser buffer")
+
+
+(defvar eb//all-pinned-urls nil "记录所有被 pin 的 urls")
+
+(defun eb//get-user-data-dir()
+  (or (and eb/user-data-folder (expand-file-name "EBWebView"  eb/user-data-folder))
+      (expand-file-name "emacs.exe.WebView2\\EBWebView" invocation-directory)))
+
+(defvar eb//pin-file (expand-file-name "ewv-browser-pin.el" (eb//get-user-data-dir)))
+
+(defun eb//read-pin-file()
+  (when (file-exists-p eb//pin-file)
+    (with-temp-buffer
+      (insert-file-contents eb//pin-file)
+      (eval-buffer))))
+
+(defun eb//save-pin-file()
+  (with-temp-file eb//pin-file
+    (insert ";; -*- lexical-binding: t; -*-\n")
+    (insert (format "(setq ewv-browser--all-pinned-urls '%S)" eb//all-pinned-urls))))
+
+(eb//read-pin-file)
+
+
+(defun eb/reopen-all-pinned-urls()
+  (interactive)
+  (dolist (url eb//all-pinned-urls)
+    (eb/open-url url)))
 
 (defvar eb//environment nil "假设 ewv-browser 共享一个 webview environment")
 
@@ -168,7 +196,9 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
 
 (defun eb//on-focus-change(focused buffer)
   (when focused
-    (select-window (get-buffer-window buffer))))
+    (let (w (get-buffer-window))
+      (and (window-live-p w)
+           (select-window w)))))
 
 (defun eb/open-url (url)
   "在当前 frame 新建一个 buffer 打开指定的 url。"
@@ -205,13 +235,10 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   (dolist (buf eb//all-buffers)
     (kill-buffer buf)))
 
-(defun eb//get-user-data-dir()
-  (or (and eb/user-data-folder (expand-file-name "EBWebView"  eb/user-data-folder))
-      (expand-file-name "emacs.exe.WebView2\\EBWebView" invocation-directory)))
 
-(defun eb/edit-user-data-with-msedge()
+(defun eb/open-session-in-edge()
   (interactive)
-  (when (file-executable-p eb/msedge-path)
+  (when (file-executable-p eb/edge-path)
     (setq eb//session-urls (mapcar (lambda (buf) (ent/webview-get-url (buffer-local-value 'eb//local-id buf)))
                                    eb//all-buffers))
     (eb/kill-all)
@@ -220,7 +247,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
       (while (file-exists-p (expand-file-name "lockfile" user-data-dir))
         (sit-for 0.5))
       (set-process-sentinel
-       (apply #'start-process "*MsEdge*" nil eb/msedge-path
+       (apply #'start-process "*Edge*" nil eb/edge-path
                       (format "--user-data-dir=%s" user-data-dir)
                       ;; (car-safe eb//session-urls)
                       eb//session-urls
@@ -250,26 +277,52 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   (interactive)
   (ent/webview-go-back eb//local-id))
 
+(defun eb/open-history ()
+  (interactive)
+  (eb/open-url "edge://history"))
 
-(defun eb//can-go-forward()
-  (ent/webview-can-go-forward eb//local-id))
+(defun eb/pin-url ()
+  (interactive)
+  (cl-pushnew (ent/webview-get-url eb//local-id) eb//all-pinned-urls :test #'string=)
+  (force-mode-line-update)
+  (eb//save-pin-file))
 
-(defun eb//can-go-back()
-  (ent/webview-can-go-back eb//local-id))
+(defun eb/unpin-url ()
+  (interactive)
+  (setq eb//all-pinned-urls (cl-remove (ent/webview-get-url eb//local-id) eb//all-pinned-urls :test #'string=))
+  (force-mode-line-update)
+  (eb//save-pin-file))
 
-(tool-bar-local-item "left-arrow" 'eb/go-back 'eb/go-back eb/tool-bar-map :enable '(eval (eb//can-go-back)))
+(tool-bar-local-item "left-arrow" 'eb/go-back 'eb/go-back eb/tool-bar-map :enable '(ent/webview-can-go-back eb//local-id))
 
-(tool-bar-local-item "right-arrow" 'eb/go-forward 'eb/go-forward eb/tool-bar-map :enable '(eval (eb//can-go-forward)))
+(tool-bar-local-item "right-arrow" 'eb/go-forward 'eb/go-forward eb/tool-bar-map :enable '(ent/webview-can-go-forward eb//local-id))
 
-(define-key-after eb/tool-bar-map [eb/edit-user-data-with-msedge-local]
+(define-key-after eb/tool-bar-map [eb/open-session-in-edge-local]
   `(menu-item "Open url" eb//open-default-url
               :image (image :type svg :file ,(expand-file-name "ewv.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.9)
-              :help "Open default url in in buffer"))
+              :help "Open default url in in new buffer"))
 
-(define-key-after eb/tool-bar-map [eb/edit-user-data-with-msedge]
-  `(menu-item "Open in Edge" eb/edit-user-data-with-msedge
-              :image (image :type svg :file ,(expand-file-name "msedge.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.7)
+(define-key-after eb/tool-bar-map [eb/open-history]
+  `(menu-item "Open history" eb/open-history
+              :image (image :type svg :file ,(expand-file-name "history.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.9)
+              :help "Open history in new buffer"))
+
+(define-key-after eb/tool-bar-map [eb/open-session-in-edge]
+  `(menu-item "Open in Edge" eb/open-session-in-edge
+              :image (image :type svg :file ,(expand-file-name "edge.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.7)
               :help "Open all webpages in Edge"))
+
+(define-key-after eb/tool-bar-map [eb/pin-url]
+  `(menu-item "Open in Edge" eb/pin-url
+              :image (image :type svg :file ,(expand-file-name "pin.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.7)
+              :visible (not (cl-find (ent/webview-get-url eb//local-id) eb//all-pinned-urls :test #'string=))
+              :help "Pin current url"))
+
+(define-key-after eb/tool-bar-map [eb/unpin-url]
+  `(menu-item "Open in Edge" eb/unpin-url
+              :image (image :type svg :file ,(expand-file-name "unpin.svg" ec//src-dir) :height ,(tool-bar-height nil t) :scale 0.7)
+              :visible (cl-find (ent/webview-get-url eb//local-id) eb//all-pinned-urls :test #'string=)
+              :help "Unpin current url"))
 
 (defvar eb/mode-map
   (let ((map (make-sparse-keymap)))
