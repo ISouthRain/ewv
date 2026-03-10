@@ -10,9 +10,8 @@
 (require 'ewv-core)
 
 
-(defcustom eb/default-url
-  "https://www.baidu.com"
-  "ewv-browser-open-url 默认打开的 url")
+(defcustom eb/default-url "https://www.baidu.com" "ewv-browser-open-url 默认打开的 url")
+
 (defcustom eb/browser-executable-folder nil
   "传递给 CreateCoreWebView2EnvironmentWithOptions 的参数。
 See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl?view=webview2-1.0.3800.47#createcorewebview2environmentwithoptions")
@@ -34,7 +33,6 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
 
 (defvar eb//all-buffers nil "所有 ewv-browser buffer")
 
-
 (defvar eb//environment nil "假设 ewv-browser 共享一个 webview environment")
 
 
@@ -46,8 +44,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   (setq eb//environment (or eb//environment (ent/environment-new
                                              :browser-executable-folder eb/browser-executable-folder
                                              :user-data-folder eb/user-data-folder
-                                             :are-browser-extensions-enabled eb/are-browser-extensions-enabled
-                                             ))))
+                                             :are-browser-extensions-enabled eb/are-browser-extensions-enabled))))
 
 (defun eb//webview-new(frame)
   (eb//ensure-environment)
@@ -93,8 +90,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   ;; (ec//print "unregister buffer len = %S" eb//all-buffers)
   (when (<= (length eb//all-buffers) 0)
     (eb//disable-global-hooks)
-    (setq eb//environment nil)
-    ))
+    (setq eb//environment nil)))
 
 (defvar eb/mode-map
   (let ((map (make-sparse-keymap)))
@@ -128,42 +124,26 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (and eb//local-id  (not (get-buffer-window buf t)))
-        (ent/webview-set-visible eb//local-id nil))
-      )
-    )
-  )
-;; (defalias 'eb//monitor-window-configuration-change
-;;   (timeout-debounced-func #'eb//monitor-window-configuration-change 0))
+        (ent/webview-set-visible eb//local-id nil)))))
 
 (defvar eb//monitor-window-configuration-change-timer nil)
 (defun eb//monitor-window-configuration-change()
-  (when eb//monitor-window-configuration-change-timer 
+  (when eb//monitor-window-configuration-change-timer
     ;; cancel 一个已经执行过的好像也没错
     (cancel-timer eb//monitor-window-configuration-change-timer))
   (setq eb//monitor-window-configuration-change-timer
-          (run-with-idle-timer 0 nil #'eb//monitor-window-configuration-change1))
-)
+        (run-with-idle-timer 0 nil #'eb//monitor-window-configuration-change1)))
 
 ;; NOTE window-configuration-change-hook NOT work for window deletion
 (defun eb//delete-frame-function(frame)
-  (ec//print "deleting frame %S" frame)
-
   (when-let* ((safe-frame (car-safe (remove frame (frame-list)))))
-    (ec//print "safe-frame = %S" safe-frame)
     (dolist (buf eb//all-buffers)
       (with-current-buffer buf
-        (ec//print "buf %S frame %S eb//local-frame %S" buf frame eb//local-frame)
-        (ec//print "eq = %S" (eq frame eb//local-frame))
         (when (eq frame eb//local-frame)
           (ent/webview-reparent eb//local-id safe-frame)
           (ent/webview-set-visible eb//local-id nil)
-          (setq-local eb//local-frame safe-frame)
-          (ec//print "reparent from %S to %S" frame safe-frame)
-          )
-        )
-      )
-    )
-  )
+          (setq-local eb//local-frame safe-frame))))))
+
 (defun eb//normalize-url(url)
   (if (or (string-prefix-p "https://" url)
           (string-prefix-p "http://" url)
@@ -177,10 +157,7 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
       url
     (if (file-exists-p url)
         (concat "file://" (expand-file-name url))
-      (concat "https://" url)))
-  )
-
-;;; browser: attached to buffer + occupy entire window
+      (concat "https://" url))))
 
 (defun eb//load (id url buffer)
   (ent/webview-load id
@@ -199,42 +176,35 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
    ;; 可能是 popup
    ((plist-get features :has-position) nil)
    (t (eb/open-url url) t)
-   )
-  ;; ;; (ewv-native-webview-load ewv-id
-  ;; ;;                          (ewv--browser-normalize-url url) #'ignore)
-  )
+   ))
+
 (defun eb//on-focus-change(focused buffer)
   (when focused
-    (select-window (get-buffer-window buffer))
-    ))
+    (select-window (get-buffer-window buffer))))
 
 (defun eb/open-url (url)
   "在当前 frame 新建一个 buffer 打开指定的 url。"
   (interactive (list (read-string (format "URL [%s]: " eb/default-url))))
   (when (and (file-exists-p (expand-file-name "lockfile" (eb//get-user-data-dir)))
-             (length= eb//all-buffers 0)
-             )
+             (length= eb//all-buffers 0))
     (user-error "User Data Dir %s is locked" (eb//get-user-data-dir)))
   (when (string-empty-p url)
     (setq url eb/default-url))
   (setq url (eb//normalize-url url))
 
-
   (let* ((frame (selected-frame))
          (eb-id (eb//webview-new frame))
          (eb-buffer-name (format "*ewv-browser-%d*" eb-id))
-         (eb-buffer (get-buffer-create eb-buffer-name))
-         )
+         (eb-buffer (get-buffer-create eb-buffer-name)))
+
     (ent/webview-set-on-new-window-requested eb-id #'eb//on-new-window-requested)
     (ent/webview-set-on-focus eb-id (lambda (focused) (eb//on-focus-change focused eb-buffer)))
     (with-current-buffer eb-buffer
       (eb/mode)
       (setq-local eb//local-id eb-id)
       (setq-local eb//local-frame frame)
-      (eb//load eb//local-id url eb-buffer)
-      )
-    )
-  )
+      (eb//load eb//local-id url eb-buffer))))
+
 (defun eb/open-file (file)
   (interactive "fFile: ")
   (eb/open-url (eb//normalize-url file)))
@@ -256,12 +226,8 @@ See https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/we
     (let ((user-data-dir (eb//get-user-data-dir)))
       ;; webview2 退出之后还需要一段时间才会完整退出
       (while (file-exists-p (expand-file-name "lockfile" user-data-dir))
-        (sit-for 0.5)
-        )
-      (start-process "*MSEdge*" nil eb/msedge-path (format "--user-data-dir=%s" user-data-dir))
-      )
-    )
-  )
+        (sit-for 0.5))
+      (start-process "*MsEdge*" nil eb/msedge-path (format "--user-data-dir=%s" user-data-dir)))))
 
 
 
