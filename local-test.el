@@ -6,4 +6,4 @@
 ;; https://github.com/prem-k-r/MaterialYouNewTab
 (setq ewv-browser-default-url "extension://jjpokbgpiljgndebfoljdeihhkpcpfgl/index.html")
 
-(add-hook 'emacs-startup-hook #'ewv-browser-reopen-all-pinned-urls)
+(add-hook 'emacs-startup-hook #'ewv-browser-reopen-all-pinned-tabs)
