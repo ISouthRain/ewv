@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edge 地址栏 · 自适应高度 · 无滚动条</title>
+    <!-- Font Awesome 6 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            background: #d0d7de;
+            font-size: 16px; /* 基准字体，便于rem计算 */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            min-height: 100vh;          /* 保证背景铺满，但内容很矮，无滚动条 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, Roboto, sans-serif;
+        }
+
+        /* 地址栏容器：高度由内容撑起，不再固定，使用相对单位 */
+        .edge-bar {
+            display: flex;
+            align-items: stretch;
+            width: 100%;
+            max-width: 2200px;
+            background-color: #e9edf1;
+            border-radius: 0.5rem;        /* 约8px */
+            padding: 0 0.3rem;             /* 约5px */
+            gap: 0.2rem;                   /* 约3px */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16), 0 1px 2px rgba(0,0,0,0.1);
+            margin-top: 0;
+        }
+
+        /* 所有圆形图标按钮 — 宽高使用rem，正方形，自适应字体 */
+        .nav-btn {
+            flex: 0 0 auto;
+            width: 1.75rem;                /* 28px / 16px = 1.75rem */
+            height: 1.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            border-radius: 0.35rem;         /* 约5.6px */
+            color: #2f3a4c;
+            font-size: 1rem;                /* 图标大小基准 */
+            cursor: default;
+            transition: background-color 0.15s ease;
+            outline: none;
+            line-height: 1;
+        }
+
+        .nav-btn:hover {
+            background-color: rgba(50, 60, 80, 0.08);
+        }
+
+        /* 地址栏容器 — 占据剩余最大空间，内部白色卡片 */
+        .address-wrapper {
+            flex: 1 1 auto;
+            min-width: 5rem;                /* 约80px */
+            background-color: #ffffff;
+            border: 1px solid #cbd2da;
+            border-radius: 0.875rem;         /* 14px，高度半圆 */
+            display: flex;
+            align-items: center;
+            padding: 0 0.3rem;                /* 约5px */
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(255,255,255,0.6);
+            gap: 0.15rem;                     /* 约2.5px */
+            box-sizing: border-box;
+        }
+
+        /* 地址栏内部小图标（锁、星）— 自适应大小 */
+        .address-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.25rem;                   /* 20px */
+            height: 1.25rem;
+            border-radius: 0.3rem;             /* 约5px */
+            color: #4a5768;
+            font-size: 0.85rem;                 /* 约13.6px */
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            transition: background-color 0.15s;
+            cursor: default;
+        }
+
+        .address-icon:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        /* 网址文本 — 自适应省略 */
+        .url-text {
+            flex: 1 1 auto;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.85rem;                /* 约13.6px */
+            color: #1e2632;
+            padding: 0 0.1rem;
+            user-select: none;
+            font-weight: 400;
+        }
+
+        /* 安全锁颜色 */
+        .fa-lock {
+            color: #2b6e4f;
+        }
+
+        /* 收藏星星（空心） */
+        .fa-star {
+            color: #e68a2e;
+        }
+
+        /* 插件图标 */
+        .plugin-btn {
+            font-size: 1rem;
+            color: #3c4b5e;
+        }
+
+        /* 极窄屏微调：保持比例，按钮适当缩小 */
+        @media (max-width: 480px) {
+            .edge-bar {
+                padding: 0 0.2rem;
+                gap: 0.1rem;
+            }
+            .nav-btn {
+                width: 1.5rem;                 /* 24px */
+                height: 1.5rem;
+                font-size: 0.9rem;
+            }
+            .address-wrapper {
+                padding: 0 0.2rem;
+            }
+            .address-icon {
+                width: 1.1rem;                  /* 约17.6px */
+                height: 1.1rem;
+                font-size: 0.75rem;
+            }
+            .url-text {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 地址栏：高度由内容自然撑起，基于rem自适应，无垂直滚动条 -->
+    <div class="edge-bar">
+        <!-- 返回 -->
+        <button class="nav-btn" aria-label="返回" title="返回"><i class="fas fa-arrow-left"></i></button>
+        <!-- 前进 -->
+        <button class="nav-btn" aria-label="前进" title="前进"><i class="fas fa-arrow-right"></i></button>
+        <!-- 刷新 -->
+        <button class="nav-btn" aria-label="刷新" title="刷新"><i class="fas fa-sync-alt"></i></button>
+
+        <!-- 地址栏区域：锁 + 网址 + 收藏星 -->
+        <div class="address-wrapper">
+            <span class="address-icon" title="连接安全"><i class="fas fa-lock"></i></span>
+            <span class="url-text" title="https://www.microsoft.com/zh-cn/edge">https://www.bing.com/search?q=edge+browser</span>
+            <span class="address-icon" title="收藏"><i class="fa-regular fa-star"></i></span>
+        </div>
+
+        <!-- 插件图标 -->
+        <button class="nav-btn plugin-btn" aria-label="扩展" title="扩展 (插件)"><i class="fas fa-puzzle-piece"></i></button>
+    </div>
+</body>
+</html>
